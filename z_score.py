@@ -44,13 +44,7 @@ def avg_plates(df):
     duplicate = df.duplicated(['Test plate #', 'Avg_plate'],keep='first')
     df.at[duplicate, ['Avg_plate', "Min_plate", "Max_plate"]] = np.nan
 
-# get list of all csvs
-def get_csv(path, plate_file):
-    # get all csvs in path, ignore summary data file, plate info, and output folder
-    csv = [f for f in glob.iglob(os.path.join(path, "**/*.csv"),recursive=True) \
-           if not 'summary data' in os.path.basename(f) and not plate_file in os.path.basename(f)
-           and not 'output' in os.path.dirname(f)]
-    return csv
+
 
 # read plates and add column to output
 def assign_plates(df, file="ixCells_Round 1_2021-06-22_TN09_551ASOs_plate id adjusted.csv"):
@@ -69,12 +63,18 @@ def assign_plates(df, file="ixCells_Round 1_2021-06-22_TN09_551ASOs_plate id adj
             if aso in plates['ASO Microsynth ID'].values:
                 df.at[i,'Test plate #'] = int(plates[plates['ASO Microsynth ID'] == aso]['Test plate #'])
 
-
+# get list of all csvs
+def get_csv(path, plate_file):
+    # get all csvs in path, ignore summary data file, plate info, and output folder
+    csv = [f for f in glob.iglob(os.path.join(path, "**/*.csv"),recursive=True) \
+           if not 'summary data' in os.path.basename(f) and not plate_file in os.path.basename(f)
+           and not 'output' in os.path.dirname(f)]
+    return csv
 
 def main():
     # TODO: parser?
     # specify path to folder containing all csvs and plate sheet + output to be ignored
-    path = os.getcwd()
+    path = os.getcwd()+"\data"
     plate_file = "ixCells_Round 1_2021-06-22_TN09_551ASOs_plate id adjusted.csv"
     output_file = "output.csv"
     csv = get_csv(path, plate_file)
