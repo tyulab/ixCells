@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import pandas as pd
 import numpy as np
 import glob
@@ -19,22 +20,29 @@ def avg_zscore(df):
     mean = df['Exp_zscore'].groupby(df.index // 3).transform('mean')
     df.at[::3,'Avg_zscore'] = mean
 
-    # change naive # TODO: fix str.contains
+    # change naive # TODO: move average of naive to new column
+    df["Avg_naive"] = np.nan
     # transform mean on naive groups
-    df.at[df['SampleName'].str.contains("Naive", case=False),"Avg_zscore"] = df[df['SampleName'].str.contains("Naive", case=False)].groupby('SampleName')['Exp_zscore'].transform('mean')
+    df.at[df['SampleName'].str.contains("Naive", case=False),"Avg_naive"] = df[df['SampleName'].str.contains("Naive", case=False)].groupby('SampleName')['Exp_zscore'].transform('mean')
     # set duplicate values to nan
-    duplicate = df.duplicated(['SampleName', 'ASO Microsynth ID', 'Avg_zscore'], keep='first')
-    df.loc[df['SampleName'].str.contains("Naive", case=False) & duplicate, 'Avg_zscore'] = np.nan
+    duplicate = df.duplicated(['SampleName', 'ASO Microsynth ID', 'Avg_naive'], keep='first')
+    df.loc[df['SampleName'].str.contains("Naive", case=False) & duplicate, 'Avg_naive'] = np.nan
 
 # avg zscore by plate
 def avg_plates(df):
-    # get average by plate value
-    df["Avg_plate"] = np.nan
-    mean = df['Exp_zscore'].groupby(df['Test plate #']).transform('mean')
-    df["Avg_plate"] = mean
+    # fixed: includes naive and control into calculations
+    # sort on test plate and sample
+    df["Test plate #"] = pd.to_numeric(df["Test plate #"], errors='coerce')
+    df.sort_values(['Test plate #', 'SampleName'],ascending=True, na_position='last', ignore_index=True, inplace=True)
+    # get average zscore by plate value
+    plates = df['Exp_zscore'].groupby(df['Test plate #'])
+    df["Avg_plate"] = plates.transform('mean')
+    # get min max range based on exp_zscore values
+    df["Min_plate"] = plates.transform("min")
+    df["Max_plate"] = plates.transform("max")
     # set duplicate values to nan
     duplicate = df.duplicated(['Test plate #', 'Avg_plate'],keep='first')
-    df.at[duplicate, 'Avg_plate'] = np.nan
+    df.at[duplicate, ['Avg_plate', "Min_plate", "Max_plate"]] = np.nan
 
 # get list of all csvs
 def get_csv(path, plate_file):
@@ -51,9 +59,17 @@ def assign_plates(df, file="ixCells_Round 1_2021-06-22_TN09_551ASOs_plate id adj
     plates = plates[['Test plate #', 'ASO Microsynth ID']]
     df["Test plate #"] = np.nan
     for i in range(len(df)):
-        aso = str(df.loc[i]['ASO Microsynth ID']).split("_")[0]
-        if aso in plates['ASO Microsynth ID'].values:
-            df.at[i,'Test plate #'] = plates[plates['ASO Microsynth ID'] == aso]['Test plate #']
+        sample = str(df.loc[i]['SampleName']).split("_")
+        # add plate #s to naive and control
+        if "Ionis" in sample[0] or "Naive" in sample[0]:  # check if control or naive
+            # get plate number from end eg _P##
+            df.at[i, 'Test plate #'] = int(sample[-1][1:])
+        else:
+            aso = str(df.loc[i]['ASO Microsynth ID']).split("_")[0]
+            if aso in plates['ASO Microsynth ID'].values:
+                df.at[i,'Test plate #'] = int(plates[plates['ASO Microsynth ID'] == aso]['Test plate #'])
+
+
 
 def main():
     # TODO: parser?
@@ -72,13 +88,11 @@ def main():
         if plate_file not in f:
             df = pd.read_csv(f, encoding='latin-1')
             df.columns = df.columns.str.strip()
-            # df['SampleName'] = df['SampleName'].str.normalize('NFKD').str.encode('ascii', errors='ignore').str.decode('utf-8')
-            # df['ASO Microsynth ID'] = df['ASO Microsynth ID'].str.normalize('NFKD').str.encode('ascii', errors='ignore').str.decode('utf-8')
-
             df_updated = df.replace(to_replace='^Na.*ve', value='Naive', regex=True)
             df_list.append(df_updated)
     concat_df = pd.concat(df_list, ignore_index=True)
-    concat_df = concat_df[['Experiment Name', 'SampleName','ASO Microsynth ID', 'ddCt','Exp']]
+    # drop irrelevant columns
+    concat_df = concat_df[['Experiment Name','Position', 'SampleName','ASO Microsynth ID', 'ddCt','Exp']]
     # pd.set_option('display.max_rows', df.shape[0]+1)
     # Calculate z scores for Exp
     abs_zscore(concat_df)
