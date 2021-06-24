@@ -10,7 +10,12 @@ import os
 # drop the unnecessary rows and send to csv to view plates only
 def drop_nan(df):
     new_df = df.dropna(subset=['Avg_plate'])
+    naive_df = df.dropna(subset=['Avg_naive'])
+    naive_df = naive_df[['Test plate #', 'Avg_naive']]
+    print(naive_df)
     new_df = new_df[['Test plate #', 'Avg_plate', 'Min_plate', 'Max_plate']]
+    new_df = new_df.merge(naive_df, on='Test plate #').drop_duplicates()
+    print(new_df)
     return new_df
 
 # create histogram for controls with matplotlib
@@ -44,7 +49,7 @@ def main():
     pd.set_option('display.max_columns', None)
 
     # histogram
-    control_hist(df)
+    # control_hist(df)
 
     # # drop columns/nan rows and export
     plates = drop_nan(df)

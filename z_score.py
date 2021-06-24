@@ -24,8 +24,8 @@ def avg_zscore(df):
     df["Avg_naive"] = np.nan
     # transform mean on naive groups
     df.at[df['SampleName'].str.contains("Naive", case=False),"Avg_naive"] = df[df['SampleName'].str.contains("Naive", case=False)].groupby('SampleName')['Exp_zscore'].transform('mean')
-    # set duplicate values to nan
-    duplicate = df.duplicated(['SampleName', 'ASO Microsynth ID', 'Avg_naive'], keep='first')
+    # set duplicate values to nan -- ignore missing microsynth id
+    duplicate = df.duplicated(['SampleName', 'Avg_naive'], keep='first')
     df.loc[df['SampleName'].str.contains("Naive", case=False) & duplicate, 'Avg_naive'] = np.nan
 
 # avg zscore by plate
@@ -78,7 +78,6 @@ def main():
     plate_file = "ixCells_Round 1_2021-06-22_TN09_551ASOs_plate id adjusted.csv"
     output_file = "output.csv"
     csv = get_csv(path, plate_file)
-
 
     pd.set_option('display.max_columns', None)
 
