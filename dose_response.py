@@ -13,10 +13,11 @@ def flag_exp(df):
     # avg exp over samples
     mean = samples['Exp'].groupby(samples['SampleName']).transform('mean')
     df.at[df['SampleName'].str.contains("_10|_3"),'Avg_exp'] = mean
-    # drop dupes
+    # drop dupes and exp column
     # df.to_csv("output/avg_exp.csv", index=False)
     df = df.drop(columns='Exp')
     df = df.drop_duplicates(['SampleName', 'Avg_exp']).sort_values(['SampleName']).dropna(subset=['Avg_exp']).reset_index(drop=True)
+    # separate _10 and _3 and merge
     _10 = df[df['SampleName'].str.contains("_10")].copy()
     _10['SampleName'] = _10['SampleName'].str.replace("_10","")
     _3 = df[df['SampleName'].str.contains("_3")].copy()
@@ -28,14 +29,8 @@ def flag_exp(df):
     plates = new_df['Test plate #']
     new_df.drop(columns=['Test plate #'], inplace=True)
     new_df.insert(2,'Test plate #', plates)
-    # new_df.insert(len(new_df.columns)-2,'Avg_exp_10',df['Avg_exp_10'])
-    # print(df)
-    # for i in range(0,len(df),2):
-    #     # check contains _10 and _3
-    #     if "_10" in df.loc[i,'SampleName'] and "_3" in df.loc[i+1,'SampleName']:
-    # flag the ASO if the avg exp of _10 is > _3
+    # make flag col based on two columns
     new_df['10mmol > 3mmol'] = new_df['Avg_exp_10'].gt(new_df['Avg_exp_3'])
-    print(new_df)
     print(new_df['10mmol > 3mmol'].value_counts())
     new_df.to_csv("output/dose_response.csv", index=False)
 
