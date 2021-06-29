@@ -9,10 +9,10 @@ import os
 
 # drop the unnecessary rows and send to csv to view plates only
 def drop_nan(df):
-    new_df = df.dropna(subset=['Avg_plate'])
     naive_df = df.dropna(subset=['Avg_naive'])
-    naive_df = naive_df[['Test plate #', 'Avg_naive']]
+    naive_df = naive_df[['Test plate #','Experiment Name', 'Avg_naive']]
     print(naive_df)
+    new_df = df.dropna(subset=['Avg_plate'])
     new_df = new_df[['Test plate #', 'Avg_plate', 'Min_plate', 'Max_plate']]
     new_df = new_df.merge(naive_df, on='Test plate #').drop_duplicates()
     print(new_df)
@@ -30,7 +30,7 @@ def control_hist(df):
     group_samples = control.groupby('SampleName')
     pos_df = group_samples.get_group('Ionis1375651')[['Exp', 'Test plate #']]
     neg_df = group_samples.get_group('Ionis676630')[['Exp', 'Test plate #']]
-    # TODO: increase ticks
+    # TODO: fix getting plates
     step = 8
     for i in range(1,control['Test plate #'].nunique(),step):
         axes = pos_df[pos_df['Test plate #'].between(i, i+step-1)].hist(column='Exp',by=pos_df['Test plate #'], layout=(2,-(-step//2)), alpha=0.5, label='Ionis1375651', bins=5)
