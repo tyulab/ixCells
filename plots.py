@@ -18,26 +18,71 @@ def drop_nan(df):
     print(new_df)
     return new_df
 
+# TODO: flag any controls across plates > 1.55
+
 # create histogram for controls with matplotlib
 def control_hist(df):
+    # TODO: refactor
     # pos = "Ionis1375651"
     # neg = "Ionis676630"
-    control = df[df['SampleName'].str.contains('Ionis1375651|Ionis676630')].reset_index(drop=True)
+    # separate _3 from _10
+    df = df[['Experiment Name', 'Position', 'SampleName', 'ASO Microsynth ID', 'Exp', 'Test plate #']]# .dropna(subset=['Exp'])
+    controls = df['SampleName'].str.contains('Ionis1375651|Ionis676630|Naive')
+    df[controls].to_csv("output/controls.csv", index=False)
+    control_10 = df[controls & df['SampleName'].str.contains('_10')].reset_index(drop=True)
+    control_3 = df[controls & df['SampleName'].str.contains('_3')].reset_index(drop=True)
+    # print(control_10)
+    control_10.to_csv("output/controls_10.csv", index=False)
+    control_3.to_csv("output/controls_3.csv", index=False)
+    hist(control_10, "hist_10", title='10mmol Plates')  
+    hist(control_3, "hist_3", title='3mmol Plates')
+
+# TODO: parameter for title of plot
+def hist(control, file_prefix="hist", title='Plates'):
     # export df used for histogram
-    control = control[['SampleName', 'Exp', 'Test plate #']].dropna(subset=['Exp'])
-    control.to_csv("output/controls.csv", index=False)
     control['SampleName'] = control['SampleName'].str.split('_').str[0]
     group_samples = control.groupby('SampleName')
     pos_df = group_samples.get_group('Ionis1375651')[['Exp', 'Test plate #']]
-    neg_df = group_samples.get_group('Ionis676630')[['Exp', 'Test plate #']]
+    try:
+        neg_df = group_samples.get_group('Ionis676630')[['Exp', 'Test plate #']]
+    except:
+        neg_df = None
     # TODO: fix getting plates
-    step = 8
-    for i in range(1,control['Test plate #'].nunique(),step):
-        axes = pos_df[pos_df['Test plate #'].between(i, i+step-1)].hist(column='Exp',by=pos_df['Test plate #'], layout=(2,-(-step//2)), alpha=0.5, label='Ionis1375651', bins=5)
-        neg_df[neg_df['Test plate #'].between(i, i+step-1)].hist(column='Exp', by=neg_df['Test plate #'], ax=axes.ravel()[:step], alpha=0.5, label='Ionis676630',color='r', bins=5)
-        plt.suptitle('Plates')
-        plt.figlegend(['Ionis1375651', 'Ionis676630'], loc='upper right')
-        plt.savefig('plots/hist'+str(i)+'-'+str(i+step-1)+'.png')
+
+    step = 9
+    layout = (3,3)
+    plates = control['Test plate #'].nunique()
+    for i in range(1,plates,step):
+        fig, axes = plt.subplots(sharex=True, sharey=True)
+        plt.margins(x=0, y=0)
+        rem = plates-i+1
+        axes = pos_df[pos_df['Test plate #'].between(i, i+step-1)].hist( \
+            column='Exp',by=pos_df['Test plate #'], layout=layout, \
+            sharex=True, sharey=True, figsize=(6,7), xrot=0, alpha=0.5, label='Ionis1375651', bins=5)
+        axes = axes.ravel()[:min(rem,step)]
+
+        plt.ylim(bottom=0,top=10)
+
+        if neg_df is not None:
+            plt.xlim(left=0.0, right=4.0)
+            plt.xticks(np.linspace(0,4,num=5,endpoint=True))
+            neg_df[neg_df['Test plate #'].between(i, i+step-1)].hist( \
+                column='Exp', by=neg_df['Test plate #'], ax=axes, \
+                alpha=0.5, xrot=0, label='Ionis676630',color='r', bins=5)
+            plt.figlegend(['Ionis1375651', 'Ionis676630'], loc='lower right')
+        else:
+            plt.xlim(left=0.0, right=1.5)
+            plt.xticks(np.linspace(0,1.5,num=4,endpoint=True))
+            plt.figlegend(['Ionis1375651'], loc='lower right')
+        plt.suptitle(title)
+        # fig.tight_layout()
+
+
+        for ax in axes.flatten():
+            ax.xaxis.set_tick_params(labelbottom=True)
+            ax.yaxis.set_tick_params(labelbottom=True)
+
+        plt.savefig('plots/'+file_prefix+' '+str(i)+'-'+str(i+min(rem,step)-1)+'.png')
     # plt.show()
 
 def main():
@@ -49,7 +94,7 @@ def main():
     pd.set_option('display.max_columns', None)
 
     # histogram
-    # control_hist(df)
+    control_hist(df)
 
     # # drop columns/nan rows and export
     plates = drop_nan(df)

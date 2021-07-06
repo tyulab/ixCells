@@ -6,25 +6,32 @@ import os
 import re
 # Loads csvs, gets zscore, average zscore by sample and plate, and puts to output csv
 
-# get absolute value z score from dataframe
-def abs_zscore(df):
+# set outliers above a certain z score threshold to na (preserve shape)
+def clear_outliers(df, zscore_col='Exp_zscore', exp_col='Exp', greater_than=1.8):
+    count = df[df[zscore_col] > greater_than].count()[0]
+    df.loc[df[zscore_col] > greater_than, exp_col] = np.nan
+    print("%s: %d greater than %s" % (zscore_col, count, greater_than))
+    return df
+
+# get absolute value z score from dataframe on column
+def abs_zscore(df, col='Exp'):
     # z score lambda function
     zscore = lambda x: abs((x - x.mean()) / x.std())
     # apply to exp column based on sample name
-    df['Exp_zscore'] = df.groupby(['Experiment Name','SampleName'])['Exp'].transform(zscore)
+    df[col+'_zscore'] = df.groupby(['Experiment Name','SampleName'])[col].transform(zscore)
 
 # avg zscore by sample
-def avg_zscore(df):
+def avg_zscore(df, col='Exp_zscore'):
     # average by replicate
-    df["Avg Exp zscore"] = np.nan
-    # print(df['Exp_zscore'].groupby(df.index // 3).mean())
-    mean = df['Exp_zscore'].groupby(df.index // 3).transform('mean')
-    df.at[::3,'Avg Exp zscore'] = mean
+    df["Avg "+col] = np.nan
+    # print(df[col].groupby(df.index // 3).mean())
+    mean = df[col].groupby(df.index // 3).transform('mean')
+    df.loc[::3,'Avg '+col] = mean
 
     # change naive
     df["Avg_naive"] = np.nan
     # transform mean on naive groups
-    df.at[df['SampleName'].str.contains("Naive", case=False),"Avg_naive"] =\
+    df.loc[df['SampleName'].str.contains("Naive", case=False),"Avg_naive"] =\
         df[df['SampleName'].str.contains("Naive", case=False)].groupby(['Experiment Name','SampleName'])['Exp_zscore'].transform('mean')
     # set duplicate values to nan -- ignore missing microsynth id
     duplicate = df.duplicated(['Experiment Name','SampleName', 'Avg_naive'], keep='first')
@@ -44,13 +51,22 @@ def avg_plates(df):
     df["Max_plate"] = plates.transform("max")
     # set duplicate values to nan
     duplicate = df.duplicated(['Test plate #', 'Avg_plate'],keep='first')
-    df.at[duplicate, ['Avg_plate', "Min_plate", "Max_plate"]] = np.nan
+    df.loc[duplicate, ['Avg_plate', "Min_plate", "Max_plate"]] = np.nan
 
-# redo exp based on ddct
-def redo_exp(df):
+# redo ddCt normalized on neg control
+# TODO: make it to apply after merging sheets, but it's a hassle
+def neg_ddct(df):
+    # get all values Ionis676.., group by experiment name/sample name
+    ionis_neg = df[df['SampleName'].str.contains('Ionis676630')]
+    # just more convenient to keep all columns
+    df['Avg dCt Ionis676630'] = ionis_neg['dCt'].mean()
+    # do difference
+    df['ddCt'] = df['dCt'] - df['Avg dCt Ionis676630']
+
+# redo exp based on ddct column
+def redo_exp(df, col='ddCt', output_col='Exp'):
     expression = lambda x: 2 ** (-x)
-    # print(df['ddCt'].transform(expression))
-    df['Exp'] = df['ddCt'].transform(expression)
+    df[output_col] = df[col].transform(expression)
 
 # read plates and add column to output
 def assign_plates(df, file="ixCells_Round 1_2021-06-22_TN09_551ASOs_plate id adjusted.csv"):
@@ -66,12 +82,12 @@ def assign_plates(df, file="ixCells_Round 1_2021-06-22_TN09_551ASOs_plate id adj
         # if "Ionis" in sample[0] or "Naive" in sample[0]:  # check if control or naive
             # get plate number from end eg _P##
             plate_no = find_plate_no.group(0)[2:]
-            df.at[i, 'Test plate #'] = int(plate_no)
+            df.loc[i, 'Test plate #'] = int(plate_no)
         else:
             # else attempt to find using table
             aso = str(df.loc[i]['ASO Microsynth ID']).split("_")[0]
             if aso in plates['ASO Microsynth ID'].values:
-                df.at[i,'Test plate #'] = int(plates[plates['ASO Microsynth ID'] == aso]['Test plate #'])
+                df.loc[i,'Test plate #'] = int(plates[plates['ASO Microsynth ID'] == aso]['Test plate #'])
 
 # get list of all csvs
 def get_csv(path, plate_file):
@@ -91,31 +107,41 @@ def main():
     pd.set_option('display.max_columns', None)
 
     df_list = []
+    print('found ' + str(len(csv)) + ' csv files')
     # read all csvs into dataframes and concatenate
     for f in csv:
         if plate_file not in f:
             df = pd.read_csv(f, encoding='latin-1')
             df.columns = df.columns.str.strip()
-            # rename short description to microsynth id to have consistent columns
+            # rename short description to microsynth id to have consistent columns, original naive normalized cols
             df = df.rename(columns={'ASO Short Description': 'ASO Microsynth ID'})
             # drop irrelevant columns
-            df = df[['Experiment Name', 'Position', 'SampleName', 'ASO Microsynth ID', 'ddCt', 'Exp']]
+            df = df[['Experiment Name', 'Position', 'SampleName', 'ASO Microsynth ID', 'dCt', 'ddCt', 'Exp']]
+            df = df.rename(columns={'ddCt': 'ddCt from Naive', 'Exp':'Exp from Naive'})
+            neg_ddct(df)
             df = df.replace(to_replace='^Na.*ve', value='Naive', regex=True)
             df_list.append(df)
 
-    concat_df = pd.concat(df_list, ignore_index=True)
+    df = pd.concat(df_list, ignore_index=True)
     # pd.set_option('display.max_rows', df.shape[0]+1)
+    # calculate ddCt
     # Calculate exp
-    redo_exp(concat_df)
+    redo_exp(df)
+    redo_exp(df, col='ddCt from Naive', output_col='Exp from Naive')
     # Calculate z scores for Exp
-    abs_zscore(concat_df)
+    abs_zscore(df)
+    # drop outliers
+    # TODO: fix error
+    clear_outliers(df, greater_than=1.8)
     # Average z scores
-    avg_zscore(concat_df)
-    assign_plates(concat_df, plate_file)
-    avg_plates(concat_df) # can separate this part later?
-    print(concat_df)
+    avg_zscore(df)
+    assign_plates(df, plate_file)
+    avg_plates(df) # can separate this part later?
+    # concat_df.sort_values(['SampleName', 'Experiment Name'], ignore_index=True, inplace=True)
+    print(df)
     # export to output file
-    concat_df.to_csv("output/"+output_file, index=False)
+    df.to_csv("output/"+output_file, index=False)
 
-if __name__=="__main__":
+
+if __name__ == "__main__":
     main()
