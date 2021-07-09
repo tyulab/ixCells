@@ -13,11 +13,21 @@ def clear_outliers(df, zscore_col='Exp_zscore', exp_col='Exp', greater_than=1.8)
     print("%s: %d greater than %s" % (zscore_col, count, greater_than))
     return df
 
+# helper fn. count outliers and return
+def flag_outliers(df, col='Exp_zscore', greater_than=2):
+    count = df[df[col] > greater_than].count()[0]
+    # df[zscore_col+'<'+greater_than] = True
+    # df.loc[df[col] > greater_than, exp_col] = False
+    print("%s: %d greater than %s" % (col, count, greater_than))
+    return df[col] > greater_than
+
 # get absolute value z score from dataframe on column
 def abs_zscore(df, col='Exp'):
     # z score lambda function
     zscore = lambda x: abs((x - x.mean()) / x.std())
-    # apply to exp column based on sample name
+    # apply to exp column based on sample name]
+    # TODO: remove std (for testing)
+    df[col +'_std'] = df[col].groupby(df.index // 3).transform('std')
     df[col+'_zscore'] = df.groupby(['Experiment Name','SampleName'])[col].transform(zscore)
 
 # avg zscore by sample
@@ -131,8 +141,10 @@ def main():
     # Calculate z scores for Exp
     abs_zscore(df)
     # drop outliers
-    # TODO: fix error
-    clear_outliers(df, greater_than=1.8)
+    # set threshold on z exp zscores
+    threshold = flag_outliers(df, col='Exp_zscore', greater_than=1.8)
+    dropped = df[threshold].reset_index(drop=True)
+    dropped.to_csv("output/output_dropped.csv")
     # Average z scores
     avg_zscore(df)
     assign_plates(df, plate_file)

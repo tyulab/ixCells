@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import glob
 import os
 
-# Dose response step- flag ASO if avg 10mmol exp value > avg 3mmol exp value
+# Exp zscore plots and dose response step- flag ASO if avg 10mmol exp value > avg 3mmol exp value
 
 # Calculate mean exp for each biological replicate
 # TODO: zscore
@@ -122,12 +122,12 @@ def clear_outliers(df, zscore_col='Exp_zscore', exp_col='Exp', greater_than=1.8)
     return df
 
 # helper fn. count outliers and return
-def flag_outliers(df, zscore_col='Exp_zscore', greater_than=2):
-    count = df[df[zscore_col] > greater_than].count()[0]
+def flag_outliers(df, col='Exp_zscore', greater_than=2):
+    count = df[df[col] > greater_than].count()[0]
     # df[zscore_col+'<'+greater_than] = True
-    # df.loc[df[zscore_col] > greater_than, exp_col] = False
-    print("%s: %d greater than %s" % (zscore_col, count, greater_than))
-    return df[zscore_col] > greater_than
+    # df.loc[df[col] > greater_than, exp_col] = False
+    print("%s: %d greater than %s" % (col, count, greater_than))
+    return df[col] > greater_than
 
 def type_hist(df, col):
     # separate into WT, MT, total
@@ -192,18 +192,23 @@ def main():
     # functions
     # df = clear_outliers(df)
     df = avg_exp(df)
-    # flag_exp(df)
 
     type_hist(df, 'Avg Exp_zscore range')
 
-    # flag >1.55 zscore range
+    # flag >1.55 zscore range and/or drop
     df = df.dropna(subset=['Avg Exp_zscore range']).reset_index(drop=True)
-    ranges = flag_outliers(df, zscore_col='Avg Exp_zscore range', greater_than=1.55)
+    threshold = 1.25
+    ranges = flag_outliers(df, col='Avg Exp_zscore range', greater_than=threshold)
+    dropped = df[ranges].sort_values('Avg Exp_zscore range', ascending=True).reset_index(drop=True)
+    dropped_samples = dropped.groupby('SampleName').first().sort_values(['SampleName'], na_position='last')
+    dropped_samples = dropped_samples[['Experiment Name', 'ASO Microsynth ID', 'Test plate #', 'Avg Exp_zscore range']]
+    dropped_samples['Threshold: '+str(threshold)] = np.nan
+    dropped_samples.to_csv("output/tiers_dropped.csv")
     df = df[~ranges].reset_index(drop=True)
     df = tierlist(df)
     df.to_csv("output/tiers_ungrouped.csv")
     grouped_samples = df.groupby('SampleName').first().sort_values(['Tier', 'SampleName'], na_position='last')
-    grouped_samples = grouped_samples[['ASO Microsynth ID','Test plate #','Avg Exp','Tier']]
+    grouped_samples = grouped_samples[['ASO Microsynth ID','Test plate #','Tier']]
     grouped_samples.to_csv("output/tiers.csv")
     # drop ranges
 
