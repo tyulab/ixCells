@@ -8,6 +8,10 @@ import os
 
 
 # create histogram for controls with matplotlib
+from functions import flag_outliers
+from histograms import hist_plates
+
+
 def control_hist(df):
     # pos = "Ionis 1375651"
     # neg = "Ionis 676630"
@@ -36,7 +40,7 @@ def hist(control, file_prefix="hist", title='Plates'):
 
     fig, axes = plt.subplots(sharex=True, sharey=True)
     plt.margins(x=0, y=0)
-    axes = pos_df.hist( \
+    axes = histograms.hist_plates( \
         column='Avg Exp', \
         sharex=True, sharey=True, figsize=(6,7), xrot=0, alpha=0.5, label='Ionis1375651', bins=5)
     axes = axes.ravel()[:]
@@ -65,6 +69,62 @@ def hist(control, file_prefix="hist", title='Plates'):
     plt.savefig('plots/'+file_prefix+'.png')
     # plt.show()
 
+# same as in dose response file
+def avg_exp_zscore(df):
+    df = functions.hide_naive_control(df)
+    df = df.replace(to_replace='_1$|_2$', value='', regex=True)
+    mean = df.groupby(['Experiment Name', 'SampleName'])['Avg Exp'].transform('mean')
+    std = df.groupby(['Experiment Name', 'SampleName'])['Avg Exp'].transform('std')
+    df['Exp_std'] = std
+    stats.zscore(df, 'Avg Exp', mean, std)
+    return df
+
+
+def std_hist(df, col='Exp std', color='b'):
+    # separate into WT, MT, total
+    # for i in range(len(types)):
+    #     type_df = df_no_na[df_no_na['Experiment Name'].str.contains(types[i], case=False)]
+    #     type_df.hist(column=col, bins=20)
+    #     plt.title("Exp zscore ranges for "+types[i])
+    #     plt.xlabel('Exp zscore range')
+    #     # save the dfs in case
+    #     type_df.to_csv("output/Exp zscore "+types[i]+".csv", index=False)
+    #     plt.savefig('plots/' + 'Exp zscore hist ' + types[i] + '.png')
+
+
+    # fig, axes = plt.subplots(sharex=True, sharey=True)
+    plt.margins(x=0, y=0)
+    df.hist(column=col, sharex=True, sharey=True, xrot=0, alpha=0.5, label='df', color=color, bins=40)
+    # drop outliers?
+    max = df[col].max()
+    min = df[col].min()
+    plt.xlim(left=min, right=max)
+
+    # axes = axes.ravel()[:min(rem, step)]
+
+    # plt.xticks(np.linspace(0, 10, num=6, endpoint=True))
+    # plt.ylim(bottom=0, top=10)
+    # plt.xticks(np.linspace(0, 2, num=5, endpoint=True))
+    # plt.figlegend(['df1', 'df2'], loc='lower right')
+
+    plt.show()
+
+def make_std_hist():
+    data_file_1 = "output/renata data.csv"
+    data_file_2 = "output/output.csv"
+    # store in df
+    df1 = pd.read_csv(data_file_1, encoding='latin-1')
+    df2 = pd.read_csv(data_file_2, encoding='latin-1')
+    pd.set_option('display.max_columns', None)
+
+    df1_outliers = flag_outliers(df1, col='Exp_std',greater_than=2.0)
+    df2_outliers = flag_outliers(df2, col='Exp_std', greater_than=2.0)
+    df1 = df1[~df1_outliers]
+    df2 = df2[~df2_outliers]
+
+    std_hist(df1, col='Exp_std', color='b')
+    std_hist(df2, col='Exp_std', color='r')
+
 # change renata's data to fit ixcell scripts
 def main():
     # default path for table to read from
@@ -76,12 +136,11 @@ def main():
 
     # sort
     df = df.sort_values(['ASO Microsynth ID'], ignore_index=True)
-    print(df)
-    df.to_csv("output/renata data.csv")
+    df = avg_exp_zscore(df)
 
     control_hist(df)
-
+    df.to_csv("output/renata data.csv")
 
 
 if __name__ == "__main__":
-    main()
+    make_std_hist()

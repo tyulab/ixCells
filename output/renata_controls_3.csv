@@ -1,6 +1,4 @@
 Experiment Name,SampleName,ASO Microsynth ID,Avg Exp
-Experiment_39_1,Ionis 1375651_3uM,Ionis 1375651_3uM,0.484141275
-Experiment_39_2,Ionis 1375651_3uM,Ionis 1375651_3uM,0.271119352
-Experiment_39_1,Ionis 676630_3uM,Ionis 676630_3uM,1.044997869
-Experiment_39_1,Naive_3,Naive_3,0.950988632
-Experiment_39_2,Naive_3,Naive_3,1.096571589
+Experiment_39,Ionis 1375651_3uM,Ionis 1375651_3uM,0.484141275
+Experiment_39,Ionis 1375651_3uM,Ionis 1375651_3uM,0.271119352
+Experiment_39,Ionis 676630_3uM,Ionis 676630_3uM,1.044997869
