@@ -37,14 +37,14 @@ def assign_plates(df, file="ixCells_Round 1_2021-06-22_TN09_551ASOs_plate id adj
     df["Test plate #"] = np.nan
     for i in range(len(df)): # try to find _P[0-9]+
         # sample = str(df.loc[i]['SampleName']).split("_")
-        find_plate_no = re.search('_P\d+', str(df.loc[i,'SampleName'])) # search for plate number on sample name
+        find_plate_no = re.search('_P\d+.*$', str(df.loc[i,'SampleName'])) # search for plate number on sample name
         if find_plate_no is None:
-            find_plate_no = re.search('_P\d+', str(df.loc[i,'ASO Microsynth ID']))  # search for plate number on microsynth id
+            find_plate_no = re.search('_P\d+.*$', str(df.loc[i,'ASO Microsynth ID']))  # search for plate number on microsynth id
         # add plate #s to naive and control
         if find_plate_no is not None:
         # if "Ionis" in sample[0] or "Naive" in sample[0]:  # check if control or naive
             # get plate number from end eg _P##
-            plate_no = find_plate_no.group(0)[2:]
+            plate_no = re.search('\d+$', find_plate_no.group(0)).group(0)
             df.loc[i, 'Test plate #'] = int(plate_no)
         else:
             # else attempt to find using table
@@ -64,3 +64,13 @@ def get_avg_exp(df, sample_name):
     except:
         avg_exp = None
     return avg_exp
+
+# remove 3mmol samples and only look at 10mmol
+def remove_3(df):
+    _3 = df['SampleName'].str.contains('_3')
+    return df[~_3].reset_index(drop=True)
+
+# remove total experiments and only look at MT/WT
+def remove_total(df):
+    total = df['Experiment Name'].str.contains('total')
+    return df[~total].reset_index(drop=True)

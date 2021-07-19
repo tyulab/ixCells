@@ -4,6 +4,8 @@ import numpy as np
 from matplotlib import pyplot as plt
 from scipy import stats
 import matplotlib.pyplot as plt
+from matplotlib import colors
+from tqdm import tqdm
 import glob
 import os
 
@@ -14,7 +16,7 @@ def type_hist(df, col):
     types = ['WT','MT','total']
     for i in range(len(types)):
         type_df = df_no_na[df_no_na['Experiment Name'].str.contains(types[i], case=False)]
-        hist_plates(column=col, bins=20)
+        type_df.hist(column=col, bins=20)
         plt.title("Exp zscore ranges for "+types[i])
         plt.xlabel('Exp zscore range')
         # save the dfs in case
@@ -35,15 +37,19 @@ def control_hist(df):
     # print(control_10)
     control_10.to_csv("output/controls_10.csv", index=False)
     control_3.to_csv("output/controls_3.csv", index=False)
-    hist_plates(control_10, "hist_10", title='10mmol Plates')
-    hist_plates(control_3, "hist_3", title='3mmol Plates')
+    if not control_10.empty:
+        hist_plates(control_10, "hist_10", title='10mmol Plates')
+    if not control_3.empty:
+        hist_plates(control_3, "hist_3", title='3mmol Plates')
 
 # create histograms by plates
 def hist_plates(control, file_prefix="hist", title='Plates'):
     # export df used for histogram
     control['SampleName'] = control['SampleName'].str.split('_').str[0]
     group_samples = control.groupby('SampleName')
-    pos_df = group_samples.get_group('Ionis1375651')[['Exp', 'Test plate #']]
+    print(group_samples.groups)
+    pos_df = group_samples.get_group('Ionis1375651')
+    pos_df = pos_df[['Exp', 'Test plate #']]
     try:
         neg_df = group_samples.get_group('Ionis676630')[['Exp', 'Test plate #']]
     except:
@@ -52,11 +58,11 @@ def hist_plates(control, file_prefix="hist", title='Plates'):
     step = 9
     layout = (3,3)
     plates = control['Test plate #'].nunique()
-    for i in range(1,plates+1,step):
+    for i in tqdm(range(1,plates+1,step)):
         # fig, axes = plt.subplots(sharex=True, sharey=True)
         plt.margins(x=0, y=0)
         rem = plates-i+1
-        axes = pos_df[pos_df['Test plate #'].between(i, i+step-1)].hist_plates( \
+        axes = pos_df[pos_df['Test plate #'].between(i, i+step-1)].hist( \
             column='Exp',by=pos_df['Test plate #'], layout=layout, \
             sharex=True, sharey=True, figsize=(6,7), xrot=0, alpha=0.5, label='Ionis1375651', bins=5)
         axes = axes.ravel()[:min(rem,step)]
@@ -67,7 +73,7 @@ def hist_plates(control, file_prefix="hist", title='Plates'):
         if neg_df is not None:
             plt.xlim(left=0.0, right=1.75)
             plt.xticks(np.linspace(0,2,num=5,endpoint=True))
-            neg_df[neg_df['Test plate #'].between(i, i+step-1)].hist_plates( \
+            neg_df[neg_df['Test plate #'].between(i, i+step-1)].hist( \
                 column='Exp', by=neg_df['Test plate #'], ax=axes, \
                 alpha=0.5, xrot=0, label='Ionis676630',color='r', bins=5)
             plt.figlegend(['Ionis1375651', 'Ionis676630'], loc='lower right')
@@ -84,3 +90,83 @@ def hist_plates(control, file_prefix="hist", title='Plates'):
 
         plt.savefig('plots/'+file_prefix+' '+str(i)+'-'+str(i+min(rem,step)-1)+'.png')
     # plt.show()
+
+# helper function to create scatter plot for the tiers df
+def tier_scatter(df, title='Tiers by MT/WT'):
+    # Create nums for MT and WT
+    df['MT Avg Exp'] = df['MT Avg Exp']*100
+    df['WT Avg Exp'] = df['WT Avg Exp']*100
+
+    cmap = colors.ListedColormap(['r', 'g', 'b', 'c'])
+    bounds = [0, 10, 20]
+    norm = colors.BoundaryNorm(bounds, cmap.N)
+
+    ax1 = df.plot.scatter(x='WT Avg Exp', y = 'MT Avg Exp') # alpha=0.5
+
+    plt.title(title)
+    plt.savefig('plots/scatter_uncropped.pdf')
+
+    df = df[df['MT Avg Exp'] <= 110]
+    df = df[df['WT Avg Exp'] <= 110]
+    # ax1 = df.plot.scatter(x='WT Avg Exp', y = 'MT Avg Exp', c=df['MT Avg Exp'], cmap=cmap)
+    plt.xlim(left=0.0, right=100)
+    plt.ylim(bottom=0, top=100)
+    plt.xticks(np.linspace(0,110,num=12,endpoint=True))
+    plt.yticks(np.linspace(0,110,num=12,endpoint=True))
+    plt.grid(True)
+
+    plt.savefig('plots/scatter.pdf')
+    plt.show()
+
+
+# helper function to create scatter plot for the tiers df
+def tier_hist(df):
+    # Separate the tiers for MT and WT
+    mt_tier = df['Tier'].str.slice(stop=3)
+    wt_tier = df['Tier'].str.slice(start=3)
+    print(mt_tier)
+
+    # # export df used for histogram
+    # control['SampleName'] = control['SampleName'].str.split('_').str[0]
+    # group_samples = control.groupby('SampleName')
+    # pos_df = group_samples.get_group('Ionis1375651')[['Exp', 'Test plate #']]
+    # try:
+    #     neg_df = group_samples.get_group('Ionis676630')[['Exp', 'Test plate #']]
+    # except:
+    #     neg_df = None
+    #
+    # step = 9
+    # layout = (3, 3)
+    # plates = control['Test plate #'].nunique()
+    # for i in range(1, plates + 1, step):
+    #     # fig, axes = plt.subplots(sharex=True, sharey=True)
+    #     plt.margins(x=0, y=0)
+    #     rem = plates - i + 1
+    #     axes = pos_df[pos_df['Test plate #'].between(i, i + step - 1)].hist_plates( \
+    #         column='Exp', by=pos_df['Test plate #'], layout=layout, \
+    #         sharex=True, sharey=True, figsize=(6, 7), xrot=0, alpha=0.5, label='Ionis1375651', bins=5)
+    #     axes = axes.ravel()[:min(rem, step)]
+    #
+    #     # plt.yticks(np.linspace(0, 10, num=6, endpoint=True))
+    #     plt.ylim(bottom=0, top=10)
+    #
+    #     if neg_df is not None:
+    #         plt.xlim(left=0.0, right=1.75)
+    #         plt.xticks(np.linspace(0, 2, num=5, endpoint=True))
+    #         neg_df[neg_df['Test plate #'].between(i, i + step - 1)].hist_plates( \
+    #             column='Exp', by=neg_df['Test plate #'], ax=axes, \
+    #             alpha=0.5, xrot=0, label='Ionis676630', color='r', bins=5)
+    #         plt.figlegend(['Ionis1375651', 'Ionis676630'], loc='lower right')
+    #     else:
+    #         plt.xlim(left=0.0, right=1.5)
+    #         plt.xticks(np.linspace(0, 1.5, num=4, endpoint=True))
+    #         plt.figlegend(['Ionis1375651'], loc='lower right')
+    #     plt.suptitle(title)
+    #     # fig.tight_layout()
+    #
+    #     for ax in axes.flatten():
+    #         ax.xaxis.set_tick_params(labelbottom=True)
+    #         ax.yaxis.set_tick_params(labelbottom=True)
+    #
+    #     plt.savefig('plots/' + file_prefix + ' ' + str(i) + '-' + str(i + min(rem, step) - 1) + '.png')
+    # # plt.show()

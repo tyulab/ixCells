@@ -2,6 +2,7 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib import colors
 from scipy import stats
 import glob
 import os
@@ -10,6 +11,17 @@ import os
 
 # get absolute value z score from dataframe on column
 from functions import hide_naive_control, get_avg_exp
+
+# bins to check intervals on. nomenclature: "10" means 0.1 <= x < 0.2, "90" means 0.9 <= x < inf, etc...
+BINS = np.linspace(0.0,1.0,11) # right = False
+names = list(map(lambda x: '0' + str(x),np.arange(0,100,10)))
+names[0] = '000'
+names.append('100')
+# the name assigned to each bin by corresponding indices
+NAMES = names
+# key starting from 1, names at NAMES
+DICT = dict(enumerate(NAMES, 1))
+
 
 
 def abs_zscore(df, col='Exp'):
@@ -24,7 +36,7 @@ def abs_zscore(df, col='Exp'):
 # TODO: make it to apply after merging sheets, low priority
 def neg_ddct(df):
     # get all values Ionis676.., group by experiment name/sample name
-    ionis_neg = df[df['SampleName'].str.contains('Ionis676630')]
+    ionis_neg = df[df['SampleName'].str.contains('Ionis676630|Ionis 676630', na=False)]
     # just more convenient to keep all columns
     df['Avg dCt Ionis676630'] = ionis_neg['dCt'].mean()
     # do difference
@@ -39,7 +51,7 @@ def calc_exp(df, col='ddCt', output_col='Exp'):
 def avg_plates(df):
     # fixed: includes naive and control into calculations
     # sort on test plate and sample
-    df["Test plate #"] = pd.to_numeric(df["Test plate #"], errors='coerce')
+    # df["Test plate #"] = pd.to_numeric(df["Test plate #"], errors='coerce')
     df.sort_values(['Test plate #', 'SampleName'],ascending=True, na_position='last', ignore_index=True, inplace=True)
     # get average zscore by plate value
     plates = df['Exp_zscore'].groupby(df['Test plate #'])
@@ -118,13 +130,43 @@ def exp_zscore_range(df):
     return df
 
 # helper fn: pass MT and WT, assign to tiers
+def create_tier(df, col='Avg Exp', new_col='Tier'):
+    df[new_col] = np.vectorize(DICT.get)(np.digitize(df[col], BINS, right=False))
+
+
+def tierlist(df):
+    # get Avg Exp, group by sample
+    df['Avg Exp'] = df.groupby(['Experiment Name','SampleName'])['Avg Exp'].transform('mean')
+    df.to_csv("output/avg_exp.csv")
+    df_mt = df[df['Experiment Name'].str.contains('MT', case=False)].reset_index(drop=True)[['SampleName','ASO Microsynth ID','Test plate #','Avg Exp']]
+    df_wt = df[df['Experiment Name'].str.contains('WT', case=False)].reset_index(drop=True)[['SampleName','ASO Microsynth ID','Test plate #','Avg Exp']]
+    df = df[['SampleName','ASO Microsynth ID','Avg Exp']]
+    # df['Tier'] = np.nan
+    df_mt = df_mt.groupby(df_mt['SampleName']).first()
+    df_mt = df_mt.rename(columns={'Avg Exp': 'MT Avg Exp'})
+    df_wt = df_wt.groupby(df_wt['SampleName']).first()
+    df_mt.to_csv("output/df_mt.csv")
+    df_wt.to_csv("output/df_wt.csv")
+    # TODO: make sure count is even
+    df_mt['WT Avg Exp'] = df_wt['Avg Exp']
+    create_tier(df_mt, col='MT Avg Exp', new_col='Tier')
+    create_tier(df_wt, new_col='Tier')
+    df_mt['Tier'] = df_mt['Tier']+df_wt['Tier']
+    # df_mt['Tier'] = df_mt['Tier'].astype(int)
+    return df_mt
+    # return df.sort_values(['Tier', 'ASO Microsynth ID'], na_position='last')
+
+
+# old helper fn to pass MT and WT, assign to tiers
 def rank_tier(mt, wt):
     tier = np.nan
     if mt < 0.2:  # tier 1
-        if wt > 0.7:
+        if wt > 0.8:
             tier = '1A'
-        elif wt > 0.6:
+        elif wt > 0.7:
             tier = '1B'
+        elif wt > 0.6:
+            tier = '1C'
     elif mt < 0.3:  # tier 2
         if wt > 0.6:
             tier = '2A'
@@ -144,15 +186,17 @@ def rank_tier(mt, wt):
     return tier
 
 
-def tierlist(df):
+def tierlist2(df):
     # get Avg Exp, group by sample
     df['Tier'] = np.nan
+    df['Avg Exp'] = df.groupby(['Experiment Name','SampleName'])['Avg Exp'].transform('mean')
+    df.to_csv("output/avg_exp.csv")
     df_mt = df[df['Experiment Name'].str.contains('MT', case=False)].reset_index(drop=True)
     df_wt = df[df['Experiment Name'].str.contains('WT', case=False)].reset_index(drop=True)
-    df_mt.to_csv("output/df_mt.csv")
-    df_wt.to_csv("output/df_wt.csv")
     df_mt = df_mt['Avg Exp'].groupby(df_mt['SampleName']).mean()
     df_wt = df_wt['Avg Exp'].groupby(df_wt['SampleName']).mean()
+    df_mt.to_csv("output/df_mt.csv")
+    df_wt.to_csv("output/df_wt.csv")
     samples = df['SampleName'].unique()
     count = 0
     for sample in samples:

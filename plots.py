@@ -3,7 +3,7 @@
 # make histogram for +/- control and output file with plate values using output file
 
 # drop the unnecessary rows and send to csv to view plates only
-from run import create_control_hist
+from run import create_control_hist, create_tier_plots
 
 
 def drop_nan(df):
@@ -19,3 +19,4 @@ def drop_nan(df):
 
 if __name__=="__main__":
     create_control_hist()
+    create_tier_plots()

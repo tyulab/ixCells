@@ -2,13 +2,16 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import dose_response
 import glob
 import os
+from tqdm import tqdm
 
-from functions import get_csv, flag_outliers, assign_plates
-from histograms import type_hist, control_hist
+from functions import get_csv, flag_outliers, assign_plates, remove_3, remove_total
+from histograms import type_hist, control_hist, tier_scatter, tier_hist
 from stats import neg_ddct, calc_exp, abs_zscore, avg_zscore, avg_plates, exp_zscore_range, tierlist
+
+# limit on z score range to filter out before making list of tiers
+TIERS_THRESHOLD = 1.5
 
 # make output file
 # steps- renormalize ddCt, recalculate Exp, calculate abs z scores, drop outliers, avg z scores on samples, assign plates, avg on plates
@@ -25,18 +28,20 @@ def create_output():
     df_list = []
     print('found ' + str(len(csv)) + ' csv files')
     # read all csvs into dataframes and concatenate
-    for f in csv:
+    for f in tqdm(csv):
         if plate_file not in f:
             df = pd.read_csv(f, encoding='latin-1')
             df.columns = df.columns.str.strip()
             # rename short description to microsynth id to have consistent columns, original naive normalized cols
             df = df.rename(columns={'ASO Short Description': 'ASO Microsynth ID'})
+            # drop fully empty rows
+            df = df.dropna(how='all').reset_index(drop=True)
             # drop irrelevant columns
             df = df[['Experiment Name', 'Position', 'SampleName', 'ASO Microsynth ID', 'dCt', 'ddCt', 'Exp']]
             df = df.rename(columns={'ddCt': 'ddCt from Naive', 'Exp':'Exp from Naive'})
             # calculate ddCt
             neg_ddct(df)
-            df = df.replace(to_replace='^Na.*ve', value='Naive', regex=True)
+            df = df.replace(to_replace='^Na.*e', value='Naive', regex=True)
             df_list.append(df)
 
     df = pd.concat(df_list, ignore_index=True)
@@ -81,22 +86,27 @@ def create_tiers():
     df = pd.read_csv(table_file, encoding='latin-1')
     pd.set_option('display.max_columns', None)
 
-    # flag >1.55 zscore range and/or drop
+    # remove 3mmol and total from view
+    df = remove_3(df)
+    df = remove_total(df)
+
+    # flag ranges > threshold and drop
     df = df.dropna(subset=['Avg Exp_zscore range']).reset_index(drop=True)
-    threshold = 1.25
-    ranges = flag_outliers(df, col='Avg Exp_zscore range', greater_than=threshold)
+    ranges = flag_outliers(df, col='Avg Exp_zscore range', greater_than=TIERS_THRESHOLD)
     dropped = df[ranges].sort_values('Avg Exp_zscore range', ascending=True).reset_index(drop=True)
-    dropped_samples = dropped.groupby('SampleName').first().sort_values(['SampleName'], na_position='last')
-    dropped_samples = dropped_samples[['Experiment Name', 'ASO Microsynth ID', 'Test plate #', 'Avg Exp_zscore range']]
-    dropped_samples['Threshold: ' + str(threshold)] = np.nan
-    dropped_samples.to_csv("output/tiers_dropped.csv", index=False)
-    # remove anything weihtout range information
-    df = df[~ranges].reset_index(drop=True)
-    df = tierlist(df)
-    grouped_samples = df.groupby('SampleName').first().sort_values(['Tier', 'SampleName'], na_position='last')
-    grouped_samples = grouped_samples[['ASO Microsynth ID', 'Test plate #', 'Tier']]
-    grouped_samples.to_csv("output/tiers.csv", index=False)
-    # drop ranges
+    dropped_groups = dropped.groupby('SampleName').first().sort_values(['SampleName'], na_position='last')
+    dropped_groups = dropped_groups[['ASO Microsynth ID', 'Test plate #']]
+    dropped_groups['Threshold: ' + str(TIERS_THRESHOLD)] = np.nan
+    dropped_groups.to_csv("output/tiers_dropped.csv", index=True)
+
+    # remove anything in dropped samples from tiering
+    dropped_samples = dropped['SampleName'].unique()
+    df = df[~df['SampleName'].isin(dropped_samples)].reset_index(drop=True)
+
+    tiers = tierlist(df)
+
+    tiers.sort_values(['Tier','SampleName'], ascending=True, inplace=True)
+    tiers.to_csv("output/tiers.csv", index=True)
 
 
 # make control histograms
@@ -109,7 +119,7 @@ def create_control_hist():
     pd.set_option('display.max_columns', None)
 
     # TODO: flag any controls across plates > 1.55
-    outliers = dose_response.flag_outliers(df, col='Exp', greater_than=1.55)
+    outliers = flag_outliers(df, col='Exp', greater_than=1.55)
     df = df[~outliers].reset_index(drop=True)
     # histogram
     control_hist(df)
@@ -117,3 +127,17 @@ def create_control_hist():
     # # drop columns/nan rows and export
     # plates = drop_nan(df)
     # plates.to_csv("output/" + plate_output, index=False)
+
+
+def create_tier_plots():
+    file = "output/tiers.csv"
+    # lst of column names which needs to be string
+    lst_str_cols = ['Tier']
+    # use dictionary comprehension to make dict of dtypes
+    dict_dtypes = {x: 'str' for x in lst_str_cols}
+    # use dict on dtypes
+    df = pd.read_csv(file, dtype=dict_dtypes)
+    # scatter plot
+    tier_scatter(df)
+    # histogram
+    # tier_hist(df)
