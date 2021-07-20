@@ -1,14 +1,12 @@
 #!/usr/bin/env python
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import glob
 import os
 from tqdm import tqdm
 
-from functions import get_csv, flag_outliers, assign_plates, remove_3, remove_total
-from histograms import type_hist, control_hist, tier_scatter, tier_hist
-from stats import neg_ddct, calc_exp, abs_zscore, avg_zscore, avg_plates, exp_zscore_range, tierlist
+from utils import functions
+from utils.plots import type_hist, control_hist, tier_scatter, r2_plot
+from utils.stats import neg_ddct, calc_exp, abs_zscore, avg_zscore, avg_plates, exp_zscore_range, tierlist
 
 # limit on z score range to filter out before making list of tiers
 TIERS_THRESHOLD = 1.5
@@ -21,7 +19,7 @@ def create_output():
     path = os.getcwd()+"\data"
     plate_file = "ixCells_Round 1_2021-06-22_TN09_551ASOs_plate id adjusted.csv"
     output_file = "output.csv"
-    csv = get_csv(path, plate_file)
+    csv = functions.get_csv(path, plate_file)
 
     pd.set_option('display.max_columns', None)
 
@@ -53,12 +51,13 @@ def create_output():
     abs_zscore(df)
     # drop outliers
     # set threshold on z exp zscores
-    threshold = flag_outliers(df, col='Exp_zscore', greater_than=1.8)
+    threshold = functions.flag_outliers(df, col='Exp_zscore', greater_than=1.8)
     dropped = df[threshold].reset_index(drop=True)
     dropped.to_csv("output/output_dropped.csv")
+    df = df[~threshold].reset_index(drop=True)
     # Average z scores
     avg_zscore(df)
-    assign_plates(df, plate_file)
+    functions.assign_plates(df, plate_file)
     avg_plates(df) # can separate this part later?
     print(df)
     # export to output file
@@ -87,12 +86,12 @@ def create_tiers():
     pd.set_option('display.max_columns', None)
 
     # remove 3mmol and total from view
-    df = remove_3(df)
-    df = remove_total(df)
+    df = functions.remove_3(df)
+    df = functions.remove_total(df)
 
     # flag ranges > threshold and drop
     df = df.dropna(subset=['Avg Exp_zscore range']).reset_index(drop=True)
-    ranges = flag_outliers(df, col='Avg Exp_zscore range', greater_than=TIERS_THRESHOLD)
+    ranges = functions.flag_outliers(df, col='Avg Exp_zscore range', greater_than=TIERS_THRESHOLD)
     dropped = df[ranges].sort_values('Avg Exp_zscore range', ascending=True).reset_index(drop=True)
     dropped_groups = dropped.groupby('SampleName').first().sort_values(['SampleName'], na_position='last')
     dropped_groups = dropped_groups[['ASO Microsynth ID', 'Test plate #']]
@@ -119,7 +118,7 @@ def create_control_hist():
     pd.set_option('display.max_columns', None)
 
     # TODO: flag any controls across plates > 1.55
-    outliers = flag_outliers(df, col='Exp', greater_than=1.55)
+    outliers = functions.flag_outliers(df, col='Exp', greater_than=1.55)
     df = df[~outliers].reset_index(drop=True)
     # histogram
     control_hist(df)
@@ -141,3 +140,15 @@ def create_tier_plots():
     tier_scatter(df)
     # histogram
     # tier_hist(df)
+
+# r squared analysis
+def run_r_squared():
+    file = "output/avg_exp_renormalized_to_neg.csv"
+    # store in df
+    df = pd.read_csv(file, encoding='latin-1')
+    pd.set_option('display.max_columns', None)
+    # get replicates
+    for type in ['WT','MT']:
+        type_df = functions.get_type(df, type=type)
+        b1,b2 = functions.get_replicates(type_df)
+        r2_plot(b1,b2,title=type)

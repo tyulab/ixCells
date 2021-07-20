@@ -3,13 +3,9 @@ import pandas as pd
 import numpy as np
 from scipy import stats
 import matplotlib.pyplot as plt
-import glob
-import os
-
 
 # create histogram for controls with matplotlib
-from functions import flag_outliers
-from histograms import hist_plates
+from utils import flag_outliers
 
 
 def control_hist(df):
