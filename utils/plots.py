@@ -98,9 +98,9 @@ def tier_scatter(df, title='Tiers by MT/WT'):
     df['MT Avg Exp'] = df['MT Avg Exp']*100
     df['WT Avg Exp'] = df['WT Avg Exp']*100
 
-    cmap = colors.ListedColormap(['r', 'g', 'b', 'c'])
-    bounds = [0, 10, 20]
-    norm = colors.BoundaryNorm(bounds, cmap.N)
+    # cmap = colors.ListedColormap(['r', 'g', 'b', 'c'])
+    # bounds = [0, 10, 20]
+    # norm = colors.BoundaryNorm(bounds, cmap.N)
 
     ax1 = df.plot.scatter(x='WT Avg Exp', y = 'MT Avg Exp') # alpha=0.5
 
@@ -181,7 +181,7 @@ def r2_plot(y_test,y_predicted, title):
     ax.set_ylabel('B2')
     # regression line
     y_test, y_predicted = y_test.reshape(-1, 1), y_predicted.reshape(-1, 1)
-    ax.plot(y_test, LinearRegression().fit(y_test, y_predicted).predict(y_test), color='red')
+    ax.plot(y_test, LinearRegression().fit(y_test, y_predicted).predict(y_test), color='red', linewidth=0.75)
     ax.set_title(title+' R2: ' + str(r2_score(y_test, y_predicted)))
     plt.savefig('plots/'+title+'_R2.pdf')
     plt.show()
