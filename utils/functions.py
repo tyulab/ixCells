@@ -28,7 +28,7 @@ def clear_outliers(df, zscore_col='Exp_zscore', exp_col='Exp', greater_than=1.8)
 def get_csv(path, plate_file):
     # get all csvs in path holding data, ignore files that don't start with ASO
     csv = [f for f in glob.iglob(os.path.join(path, "**/*.csv"),recursive=True) \
-           if os.path.basename(f).startswith('ASO')]
+           if os.path.basename(f).startswith('ASO') or os.path.basename(f).startswith('R2.3')]
     return csv
 
 # read plates and add column to output
@@ -38,8 +38,19 @@ def assign_plates(df, file="ixCells_Round 1_2021-06-22_TN09_551ASOs_plate id adj
     plates = plates[['Test plate #', 'ASO Microsynth ID']]
     df["Test plate #"] = np.nan
     for i in range(len(df)): # try to find _P[0-9]+
+        # try to search SampleName
         # sample = str(df.loc[i]['SampleName']).split("_")
         find_plate_no = re.search('_P\d+.*$', str(df.loc[i,'SampleName'])) # search for plate number on sample name
+        if find_plate_no is not None:
+            # if "Ionis" in sample[0] or "Naive" in sample[0]:  # check if control or naive
+            # try to get plate number from end eg _P##
+            if re.search('\d+$', find_plate_no.group(0)) is not None:
+                plate_no = re.search('\d+$', find_plate_no.group(0)).group(0)
+                df.loc[i, 'Test plate #'] = int(plate_no)
+                continue
+            else:
+                find_plate_no = None
+        # if samplename fails try ASO microsynth id
         if find_plate_no is None:
             find_plate_no = re.search('_P\d+.*$', str(df.loc[i,'ASO Microsynth ID']))  # search for plate number on microsynth id
         # add plate #s to naive and control

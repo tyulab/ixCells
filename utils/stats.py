@@ -63,7 +63,7 @@ def avg_plates(df):
     duplicate = df.duplicated(['Test plate #', 'Avg_plate'],keep='first')
     df.loc[duplicate, ['Avg_plate', "Min_plate", "Max_plate"]] = np.nan
 
-# avg zscore by sample
+# avg zscore by bio replicates
 def avg_zscore(df, col='Exp_zscore'):
     # average by replicate
     df["Avg "+col] = np.nan
@@ -104,7 +104,7 @@ def welch_dof(x, y):
     dof = (x.var() / x.size + y.var() / y.size) ** 2 / ((x.var() / x.size) ** 2 / (x.size - 1) + (y.var() / y.size) ** 2 / (y.size - 1))
     return dof
 
-# calculate average zscore by replicate and range
+# calculate average zscore by replicate and range with output (unfiltered)
 def exp_zscore_range(df):
     # average by replicate
     df["Avg Exp"] = np.nan
@@ -113,11 +113,13 @@ def exp_zscore_range(df):
     df.loc[::3, 'Avg Exp'] = mean
 
     df = hide_naive_control(df)
+    # get mean and std over each sample (every 6 replicates) to use on Avg Exp
     mean = df.groupby(['Experiment Name','SampleName'])['Exp'].transform('mean')
     std = df.groupby(['Experiment Name','SampleName'])['Exp'].transform('std')
+    # zscore on Avg Exp
     zscore(df, 'Avg Exp', mean, std)
 
-    # get range(?) of each group (every 6)
+    # get range of each group
     range = lambda x: abs(x.max() - x.min())
     # apply to exp column based on sample name
     # print(df.groupby(['Experiment Name','SampleName']).groups.keys())
@@ -136,7 +138,7 @@ def create_tier(df, col='Avg Exp', new_col='Tier'):
 
 def tierlist(df):
     # get Avg Exp, group by sample
-    df['Avg Exp'] = df.groupby(['Experiment Name','SampleName'])['Avg Exp'].transform('mean')
+    df['Avg Exp'] = df.groupby(['Experiment Name','SampleName'])['Exp'].transform('mean')
     # df.to_csv("output/avg_exp.csv", index=False)
     df_mt = df[df['Experiment Name'].str.contains('MT', case=False)].reset_index(drop=True)[['SampleName','ASO Microsynth ID','Test plate #','Avg Exp']]
     df_wt = df[df['Experiment Name'].str.contains('WT', case=False)].reset_index(drop=True)[['SampleName','ASO Microsynth ID','Test plate #','Avg Exp']]

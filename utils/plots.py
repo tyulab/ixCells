@@ -5,6 +5,7 @@ from matplotlib import pyplot as plt
 from scipy import stats
 import matplotlib.pyplot as plt
 from matplotlib import colors
+import seaborn as sns
 from tqdm import tqdm
 import glob
 import os
@@ -185,3 +186,28 @@ def r2_plot(y_test,y_predicted, title):
     ax.set_title(title+' R2: ' + str(r2_score(y_test, y_predicted)))
     plt.savefig('plots/'+title+'_R2.pdf')
     plt.show()
+
+def box_plot(df):
+    # plt.subplots(1, 1, figsize=(15, 10))
+    # separate by plates
+    df.loc[df['Experiment Name'].str.contains('MT'), 'Experiment Name'] = 'MT'
+    df.loc[df['Experiment Name'].str.contains('Total'), 'Experiment Name'] = 'Total'
+    df.loc[df['Experiment Name'].str.contains('WT'), 'Experiment Name'] = 'WT'
+    plates = df['Test plate #'].nunique()
+    for plate_no in range(1,plates+1):
+        # fig, ax = plt.subplots()
+        plate_group = df[df['Test plate #'] == plate_no]
+        plate_group = plate_group.dropna(subset=['Avg Exp']).reset_index(drop=True)
+
+        # plate_group.boxplot(column='Avg Exp', by=['SampleName','Experiment Name'], rot=45, figsize=(20, 10))
+        plt.xticks(ha='right')
+        plt.ylabel('Avg Exp')
+        plt.title('Plate ' + str(plate_no) + ' Avg Exp')
+        plt.suptitle(None)
+
+        # seaborn
+        # sns.set_theme(style="whitegrid")
+        # ax = sns.boxplot(x="SampleName", y="Avg Exp", hue="Experiment Name",
+        #                  data=plate_group, palette="Set3")
+        plt.show()
+

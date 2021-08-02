@@ -5,17 +5,17 @@ import os
 from tqdm import tqdm
 
 from utils.functions import *
-from utils.plots import type_hist, control_hist, tier_scatter, r2_plot
+from utils.plots import *
 from utils.stats import neg_ddct, calc_exp, abs_zscore, avg_zscore, avg_plates, exp_zscore_range, tierlist
 
 # limit on z score range to filter out before making list of tiers
 TIERS_THRESHOLD = 1.5
+# threshold for output
 Z_SCORE_THRESHOLD = 1.8
 
 # make output file
 # steps- renormalize ddCt, recalculate Exp, calculate abs z scores, drop outliers, avg z scores on samples, assign plates, avg on plates
 def create_output():
-    # TODO: parser?
     # specify path to folder containing all csvs and plate sheet + output to be ignored
     path = os.getcwd()+"\data"
     plate_file = "ixCells_Round 1_2021-06-22_TN09_551ASOs_plate id adjusted.csv"
@@ -37,17 +37,23 @@ def create_output():
             df = df.dropna(how='all').reset_index(drop=True)
             # drop irrelevant columns
             df = df[['Experiment Name', 'Position', 'SampleName', 'ASO Microsynth ID', 'dCt', 'ddCt', 'Exp']]
+
+            # renormalizing
             df = df.rename(columns={'ddCt': 'ddCt from Naive', 'Exp':'Exp from Naive'})
-            # calculate ddCt
             neg_ddct(df)
+
+
             df = df.replace(to_replace='^Na.*e', value='Naive', regex=True)
             df_list.append(df)
 
     df = pd.concat(df_list, ignore_index=True)
     # pd.set_option('display.max_rows', df.shape[0]+1)
+
     # Calculate exp
     calc_exp(df)
+    # renormalizing
     calc_exp(df, col='ddCt from Naive', output_col='Exp from Naive')
+
     # Calculate z scores for Exp
     abs_zscore(df)
     # drop outliers
@@ -55,9 +61,12 @@ def create_output():
     threshold = flag_outliers(df, col='Exp_zscore', greater_than=Z_SCORE_THRESHOLD)
     dropped = df[threshold].reset_index(drop=True)
     dropped.to_csv("output/output_dropped.csv")
-    df = df[~threshold].reset_index(drop=True)
+    df[~threshold].reset_index(drop=True).to_csv("output/output_filtered.csv")
+    df.loc[threshold,'Exp'] = np.nan
+    # df = df[~threshold].reset_index(drop=True)
     # Average z scores
-    avg_zscore(df)
+    # todo: remove
+    # avg_zscore(df)
     assign_plates(df, plate_file)
     avg_plates(df) # can separate this part later?
     print(df)
@@ -73,10 +82,10 @@ def create_avg_exp():
     df = df[['Experiment Name','SampleName','ASO Microsynth ID','Exp_zscore','Exp','Test plate #']]
     pd.set_option('display.max_columns', None)
 
-    # functions
+    # calculate avg exp, range
     df = exp_zscore_range(df)
     df.to_csv("output/avg_exp_renormalized_to_neg.csv", index=False)
-
+    # make histogram from ranges
     type_hist(df, 'Avg Exp_zscore range')
 
 def create_tiers():
@@ -119,6 +128,7 @@ def create_control_hist():
     pd.set_option('display.max_columns', None)
 
     # TODO: flag any controls across plates > 1.55
+    print('control plots:')
     outliers = flag_outliers(df, col='Exp', greater_than=1.55)
     df = df[~outliers].reset_index(drop=True)
     # histogram
@@ -155,3 +165,10 @@ def run_r_squared():
         type_df = get_type(df, type=type)
         b1,b2 = get_replicates(type_df)
         r2_plot(b1,b2,title=type)
+
+def create_box_plot():
+    file = "output/avg_exp_renormalized_to_neg.csv"
+    # store in df
+    df = pd.read_csv(file, encoding='latin-1')
+    pd.set_option('display.max_columns', None)
+    box_plot(df)
