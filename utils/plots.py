@@ -2,6 +2,7 @@
 import pandas as pd
 import numpy as np
 from matplotlib import pyplot as plt
+from matplotlib.transforms import Affine2D
 from scipy import stats
 import matplotlib.pyplot as plt
 from matplotlib import colors
@@ -11,6 +12,8 @@ import glob
 import os
 from sklearn.metrics import r2_score
 from sklearn.linear_model import LinearRegression
+
+from utils.stats import *
 
 def type_hist(df, col):
     # separate into WT, MT, total
@@ -200,14 +203,110 @@ def box_plot(df):
         plate_group = plate_group.dropna(subset=['Avg Exp']).reset_index(drop=True)
 
         # plate_group.boxplot(column='Avg Exp', by=['SampleName','Experiment Name'], rot=45, figsize=(20, 10))
+
         plt.xticks(ha='right')
-        plt.ylabel('Avg Exp')
+        plt.ylabel('Average Expression')
         plt.title('Plate ' + str(plate_no) + ' Avg Exp')
         plt.suptitle(None)
 
         # seaborn
         # sns.set_theme(style="whitegrid")
-        # ax = sns.boxplot(x="SampleName", y="Avg Exp", hue="Experiment Name",
-        #                  data=plate_group, palette="Set3")
+        ax = sns.catplot(x="SampleName", y="Avg Exp", hue="Experiment Name",
+                         data=plate_group, kind="box", height=10, aspect=15/10)
         plt.show()
 
+def error_plot(df):
+    # plt.subplots(1, 1, figsize=(15, 10))
+    # separate by plates
+    df.loc[df['Experiment Name'].str.contains('MT'), 'Experiment Name'] = 'MT'
+    df.loc[df['Experiment Name'].str.contains('Total'), 'Experiment Name'] = 'Total'
+    df.loc[df['Experiment Name'].str.contains('WT'), 'Experiment Name'] = 'WT'
+    df = calc_std(df)
+
+    plates = df['Test plate #'].nunique()
+
+    for plate_no in range(1, plates + 1):
+        fig, ax = plt.subplots(figsize=(15,8))
+        plate_group = df[df['Test plate #'] == plate_no]
+        plate_group = plate_group.dropna(subset=['Avg Exp']).reset_index(drop=True)
+
+        # matplotlib implementation
+        # https://stackoverflow.com/questions/58009069/how-to-avoid-overlapping-error-bars-in-matplotlib
+
+        x = plate_group['SampleName'].unique()
+        x = [val for val in x for _ in (0, 1)]
+        y1 = plate_group.loc[plate_group['Experiment Name'] == 'MT', 'Avg Exp'].tolist()
+        yerr1 = plate_group.loc[plate_group['Experiment Name'] == 'MT', 'Exp_std'].tolist()
+        y2= plate_group.loc[plate_group['Experiment Name'] == 'WT', 'Avg Exp'].tolist()
+        yerr2 = plate_group.loc[plate_group['Experiment Name'] == 'WT', 'Exp_std'].tolist()
+        y3= plate_group.loc[plate_group['Experiment Name'] == 'Total', 'Avg Exp'].tolist()
+        yerr3 = plate_group.loc[plate_group['Experiment Name'] == 'Total', 'Exp_std'].tolist()
+
+        trans1 = Affine2D().translate(-0.1, 0.0) + ax.transData
+        trans3 = Affine2D().translate(+0.1, 0.0) + ax.transData
+        er1 = ax.errorbar(x, y1, yerr1, linestyle="none", ecolor='red', transform=trans1)
+        er2 = ax.errorbar(x, y2, yerr2, linestyle="none", ecolor='blue')
+        er3 = ax.errorbar(x, y3, yerr3, linestyle="none", ecolor='green', transform=trans3)
+        ax.scatter(x, y1, c='red', transform=trans1)
+        ax.scatter(x, y2, c='blue')
+        ax.scatter(x, y3, c='green', transform=trans3)
+
+        plt.xticks(rotation=40, ha='right')
+        plt.ylabel('Average Expression')
+        plt.title('Plate ' + str(plate_no) + ' Avg Exp')
+        plt.suptitle(None)
+
+        plt.grid(True)
+
+        plt.show()
+
+
+def lm_plot(df):
+    # plt.subplots(1, 1, figsize=(15, 10))
+    # separate by plates
+    df.loc[df['Experiment Name'].str.contains('MT'), 'Experiment Name'] = 'MT'
+    df.loc[df['Experiment Name'].str.contains('Total'), 'Experiment Name'] = 'Total'
+    df.loc[df['Experiment Name'].str.contains('WT'), 'Experiment Name'] = 'WT'
+    df = calc_std(df)
+
+    plates = df['Test plate #'].nunique()
+    for plate_no in range(1, plates + 1):
+        # plt.figure(figsize=(15,10))
+        plate_group = df[df['Test plate #'] == plate_no]
+        plate_group = plate_group.dropna(subset=['Avg Exp']).reset_index(drop=True)
+
+        # seaborn implementation
+        sns.lmplot("SampleName", "Avg Exp", hue="Experiment Name",
+                   data=plate_group, fit_reg=False, x_estimator=np.mean, height=8, aspect=12/8)
+        plt.xticks(ha='right')
+        plt.ylabel('Average Expression')
+        plt.title('Plate ' + str(plate_no) + ' Avg Exp')
+        plt.suptitle(None)
+
+        plt.show()
+
+
+def bar_plot(df):
+    # plt.subplots(1, 1, figsize=(15, 10))
+    # separate by plates
+    df.loc[df['Experiment Name'].str.contains('MT'), 'Experiment Name'] = 'MT'
+    df.loc[df['Experiment Name'].str.contains('Total'), 'Experiment Name'] = 'Total'
+    df.loc[df['Experiment Name'].str.contains('WT'), 'Experiment Name'] = 'WT'
+    df = calc_std(df)
+
+    plates = df['Test plate #'].nunique()
+    for plate_no in range(1, plates + 1):
+        # fig, ax = plt.subplots()
+        # plt.figure(figsize=(15,10))
+        plate_group = df[df['Test plate #'] == plate_no]
+        plate_group = plate_group.dropna(subset=['Avg Exp']).reset_index(drop=True)
+
+        # sns.barplot(x='SampleName', y='Avg Exp', hue='Experiment Name', data=plate_group)
+        g = sns.FacetGrid(data=plate_group, height=8, aspect=12/8)
+        g.map(plt.errorbar, 'SampleName', 'Avg Exp', 'Exp_std', fmt='o', elinewidth=1, capsize=5, capthick=1)
+        # g.map_dataframe(sns.pointplot, x='SampleName', y='Avg Exp', hue='Experiment Name',palette=sns.color_palette()).add_legend()
+        plt.xticks(ha='right')
+        plt.ylabel('Average Expression')
+        plt.title('Plate ' + str(plate_no) + ' Avg Exp')
+        plt.suptitle(None)
+        plt.show()

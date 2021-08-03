@@ -32,11 +32,16 @@ def abs_zscore(df, col='Exp'):
     df[col +'_std'] = df[col].groupby(df.index // 3).transform('std')
     df[col+'_zscore'] = df.groupby(['Experiment Name','SampleName'])[col].transform(zscore)
 
+# redo dCt based on Crossing Point
+def redo_dct(df, CP_1='CrossingPoint', CP_2='CrossingPoint.1'):
+    df['dCt'] = abs(df[CP_1]-df[CP_2])
+    return df
+
 # redo ddCt normalized on neg control
 # TODO: make it to apply after merging sheets, low priority
 def neg_ddct(df):
     # get all values Ionis676.., group by experiment name/sample name
-    ionis_neg = df[df['SampleName'].str.contains('Ionis676630|Ionis 676630', na=False)]
+    ionis_neg = df[df['SampleName'].str.contains('(Ionis676630|Ionis 676630).*_10', na=False)]
     # just more convenient to keep all columns
     df['Avg dCt Ionis676630'] = ionis_neg['dCt'].mean()
     # do difference
@@ -46,6 +51,10 @@ def neg_ddct(df):
 def calc_exp(df, col='ddCt', output_col='Exp'):
     expression = lambda x: 2 ** (-x)
     df[output_col] = df[col].transform(expression)
+
+def calc_std(df, col='Exp', output_col='Exp std'):
+    df['Exp_std'] = df.groupby(['Experiment Name', 'SampleName'])['Exp'].transform('std')
+    return df
 
 # avg zscore by plate
 def avg_plates(df):

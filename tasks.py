@@ -6,7 +6,7 @@ from tqdm import tqdm
 
 from utils.functions import *
 from utils.plots import *
-from utils.stats import neg_ddct, calc_exp, abs_zscore, avg_zscore, avg_plates, exp_zscore_range, tierlist
+from utils.stats import *
 
 # limit on z score range to filter out before making list of tiers
 TIERS_THRESHOLD = 1.5
@@ -35,6 +35,8 @@ def create_output():
             df = df.rename(columns={'ASO Short Description': 'ASO Microsynth ID'})
             # drop fully empty rows
             df = df.dropna(how='all').reset_index(drop=True)
+            # redo dCt from Crossing Point
+            df = redo_dct(df)
             # drop irrelevant columns
             df = df[['Experiment Name', 'Position', 'SampleName', 'ASO Microsynth ID', 'dCt', 'ddCt', 'Exp']]
 
@@ -171,4 +173,9 @@ def create_box_plot():
     # store in df
     df = pd.read_csv(file, encoding='latin-1')
     pd.set_option('display.max_columns', None)
-    box_plot(df)
+
+    # test versions
+    # box_plot(df)
+    error_plot(df)
+    # lm_plot(df)
+    # bar_plot(df)
