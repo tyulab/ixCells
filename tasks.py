@@ -1,17 +1,12 @@
 #!/usr/bin/env python
-import pandas as pd
-import numpy as np
-import os
-from tqdm import tqdm
-
 from utils.functions import *
 from utils.plots import *
 from utils.stats import *
+import config
 
 # limit on z score range to filter out before making list of tiers
-TIERS_THRESHOLD = 1.5
 # threshold for output
-Z_SCORE_THRESHOLD = 1.8
+# normalize to
 
 # make output file
 # steps- renormalize ddCt, recalculate Exp, calculate abs z scores, drop outliers, avg z scores on samples, assign plates, avg on plates
@@ -40,12 +35,16 @@ def create_output():
             # drop irrelevant columns
             df = df[['Experiment Name', 'Position', 'SampleName', 'ASO Microsynth ID', 'dCt', 'ddCt', 'Exp']]
 
-            # renormalizing
-            df = df.rename(columns={'ddCt': 'ddCt from Naive', 'Exp':'Exp from Naive'})
-            neg_ddct(df)
+            # if want to renormalize
+            if config.RENORMALIZE:
+                # rename old columns and get negative control ddct
+                df = df.rename(columns={'ddCt': 'ddCt from Naive', 'Exp':'Exp from Naive'})
+                neg_ddct(df)
 
-
+            # rename naive
             df = df.replace(to_replace='^Na.*e', value='Naive', regex=True)
+
+
             df_list.append(df)
 
     df = pd.concat(df_list, ignore_index=True)
@@ -54,13 +53,14 @@ def create_output():
     # Calculate exp
     calc_exp(df)
     # renormalizing
-    calc_exp(df, col='ddCt from Naive', output_col='Exp from Naive')
+    if config.RENORMALIZE:
+        calc_exp(df, col='ddCt from Naive', output_col='Exp from Naive')
 
     # Calculate z scores for Exp
     abs_zscore(df)
     # drop outliers
     # set threshold on z exp zscores
-    threshold = flag_outliers(df, col='Exp_zscore', greater_than=Z_SCORE_THRESHOLD)
+    threshold = flag_outliers(df, col='Exp_zscore', greater_than=config.Z_SCORE_THRESHOLD)
     dropped = df[threshold].reset_index(drop=True)
     dropped.to_csv("output/output_dropped.csv")
     df[~threshold].reset_index(drop=True).to_csv("output/output_filtered.csv")
@@ -84,18 +84,24 @@ def create_avg_exp():
     df = df[['Experiment Name','SampleName','ASO Microsynth ID','Exp_zscore','Exp','Test plate #']]
     pd.set_option('display.max_columns', None)
 
+    # # hide naive / controls from avg exp
+    # df = hide_naive_control(df)
+
     # calculate avg exp, range
     df = exp_zscore_range(df)
-    df.to_csv("output/avg_exp_renormalized_to_neg.csv", index=False)
+    df.to_csv("output/avg_exp.csv", index=False)
     # make histogram from ranges
     type_hist(df, 'Avg Exp_zscore range')
 
 def create_tiers():
     # default path for table to read from
-    table_file = "output/avg_exp_renormalized_to_neg.csv"
+    table_file = "output/avg_exp.csv"
     # store in df
     df = pd.read_csv(table_file, encoding='latin-1')
     pd.set_option('display.max_columns', None)
+
+    # hide naive / controls from avg exp
+    df = hide_naive_control(df)
 
     # remove 3mmol and total from view
     df = remove_3(df)
@@ -103,11 +109,11 @@ def create_tiers():
 
     # flag ranges > threshold and drop
     df = df.dropna(subset=['Avg Exp_zscore range']).reset_index(drop=True)
-    ranges = flag_outliers(df, col='Avg Exp_zscore range', greater_than=TIERS_THRESHOLD)
+    ranges = flag_outliers(df, col='Avg Exp_zscore range', greater_than=config.TIERS_THRESHOLD)
     dropped = df[ranges].sort_values('Avg Exp_zscore range', ascending=True).reset_index(drop=True)
     dropped_groups = dropped.groupby('SampleName').first().sort_values(['SampleName'], na_position='last')
     dropped_groups = dropped_groups[['ASO Microsynth ID', 'Test plate #']]
-    dropped_groups['Threshold: ' + str(TIERS_THRESHOLD)] = np.nan
+    dropped_groups['Threshold: ' + str(config.TIERS_THRESHOLD)] = np.nan
     dropped_groups.to_csv("output/tiers_dropped.csv", index=True)
 
     # remove anything in dropped samples from tiering
@@ -156,10 +162,14 @@ def create_tier_plots():
 
 # r squared analysis
 def run_r_squared():
-    file = "output/avg_exp_renormalized_to_neg.csv"
+    file = "output/avg_exp.csv"
     # store in df
     df = pd.read_csv(file, encoding='latin-1')
     pd.set_option('display.max_columns', None)
+
+    # hide naive / controls from avg exp
+    df = hide_naive_control(df)
+
     # keep only 10mmol
     df = df[df['SampleName'].str.contains('_10')]
     # get replicates
@@ -168,12 +178,12 @@ def run_r_squared():
         b1,b2 = get_replicates(type_df)
         r2_plot(b1,b2,title=type)
 
-def create_box_plot():
-    file = "output/avg_exp_renormalized_to_neg.csv"
+def create_error_bars():
+    file = "output/avg_exp.csv"
     # store in df
     df = pd.read_csv(file, encoding='latin-1')
     pd.set_option('display.max_columns', None)
-
+    print('create error bar plots')
     # test versions
     # box_plot(df)
     error_plot(df)

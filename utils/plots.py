@@ -8,12 +8,12 @@ import matplotlib.pyplot as plt
 from matplotlib import colors
 import seaborn as sns
 from tqdm import tqdm
-import glob
-import os
 from sklearn.metrics import r2_score
 from sklearn.linear_model import LinearRegression
+import matplotlib.backends.backend_pdf
 
 from utils.stats import *
+import config
 
 def type_hist(df, col):
     # separate into WT, MT, total
@@ -47,7 +47,7 @@ def control_hist(df):
     if not control_3.empty:
         hist_plates(control_3, "hist_3", title='3mmol Plates')
 
-# create histograms by plates
+# helper function to create histograms by plates
 def hist_plates(control, file_prefix="hist", title='Plates'):
     # export df used for histogram
     control['SampleName'] = control['SampleName'].str.split('_').str[0]
@@ -190,6 +190,7 @@ def r2_plot(y_test,y_predicted, title):
     plt.savefig('plots/'+title+'_R2.pdf')
     plt.show()
 
+# scrapped?
 def box_plot(df):
     # plt.subplots(1, 1, figsize=(15, 10))
     # separate by plates
@@ -204,7 +205,8 @@ def box_plot(df):
 
         # plate_group.boxplot(column='Avg Exp', by=['SampleName','Experiment Name'], rot=45, figsize=(20, 10))
 
-        plt.xticks(ha='right')
+
+        plt.xticks(rotation=40, ha='right')
         plt.ylabel('Average Expression')
         plt.title('Plate ' + str(plate_no) + ' Avg Exp')
         plt.suptitle(None)
@@ -216,51 +218,87 @@ def box_plot(df):
         plt.show()
 
 def error_plot(df):
+    pdf = matplotlib.backends.backend_pdf.PdfPages('plots/'+config.ROUND+' kcnq2_exp.pdf')
+    spacing = 0.1
+
     # plt.subplots(1, 1, figsize=(15, 10))
+    # keep only _10 mmol
     # separate by plates
     df.loc[df['Experiment Name'].str.contains('MT'), 'Experiment Name'] = 'MT'
     df.loc[df['Experiment Name'].str.contains('Total'), 'Experiment Name'] = 'Total'
     df.loc[df['Experiment Name'].str.contains('WT'), 'Experiment Name'] = 'WT'
     df = calc_std(df)
+    # # SEM
+    # # TODO: check sample size is correct
+    # df = calc_sem(df)
+
 
     plates = df['Test plate #'].nunique()
 
-    for plate_no in range(1, plates + 1):
+    for plate_no in tqdm(range(1, plates + 1)):
         fig, ax = plt.subplots(figsize=(15,8))
-        plate_group = df[df['Test plate #'] == plate_no]
-        plate_group = plate_group.dropna(subset=['Avg Exp']).reset_index(drop=True)
+
+
+
+        plate = df[df['Test plate #'] == plate_no]
+        plate = plate.dropna(subset=['Avg Exp']).reset_index(drop=True)
+        # plate_group = plate
+
+        # re-order naive to left of graph?
+        naive = plate['ASO Microsynth ID'].str.contains('Naive')
+        naive_index = plate.index[naive].tolist()
+        other_index = plate.index[~naive].tolist()
+        # plate = pd.concat([plate[naive], df[~naive]], ignore_index=True).copy()
+        plate_group = plate.reindex(naive_index + other_index).reset_index(drop=True).copy()
 
         # matplotlib implementation
         # https://stackoverflow.com/questions/58009069/how-to-avoid-overlapping-error-bars-in-matplotlib
 
-        x = plate_group['SampleName'].unique()
-        x = [val for val in x for _ in (0, 1)]
-        y1 = plate_group.loc[plate_group['Experiment Name'] == 'MT', 'Avg Exp'].tolist()
-        yerr1 = plate_group.loc[plate_group['Experiment Name'] == 'MT', 'Exp_std'].tolist()
-        y2= plate_group.loc[plate_group['Experiment Name'] == 'WT', 'Avg Exp'].tolist()
-        yerr2 = plate_group.loc[plate_group['Experiment Name'] == 'WT', 'Exp_std'].tolist()
-        y3= plate_group.loc[plate_group['Experiment Name'] == 'Total', 'Avg Exp'].tolist()
-        yerr3 = plate_group.loc[plate_group['Experiment Name'] == 'Total', 'Exp_std'].tolist()
+        y = []
+        y_mean = []
+        yerr = []
+        err = []
+        scatter = []
+        colors=['r','b','g']
+        types=['MT', 'WT', 'Total']
 
-        trans1 = Affine2D().translate(-0.1, 0.0) + ax.transData
-        trans3 = Affine2D().translate(+0.1, 0.0) + ax.transData
-        er1 = ax.errorbar(x, y1, yerr1, linestyle="none", ecolor='red', transform=trans1)
-        er2 = ax.errorbar(x, y2, yerr2, linestyle="none", ecolor='blue')
-        er3 = ax.errorbar(x, y3, yerr3, linestyle="none", ecolor='green', transform=trans3)
-        ax.scatter(x, y1, c='red', transform=trans1)
-        ax.scatter(x, y2, c='blue')
-        ax.scatter(x, y3, c='green', transform=trans3)
+        for idx, t in enumerate(types):
+            # unique names of samples
+            x = plate_group[plate_group['Experiment Name'] == t]['ASO Microsynth ID'].unique()
+            # all occurences of avg exp points
+            x2 = plate_group[plate_group['Experiment Name'] == t]['ASO Microsynth ID'].tolist()
+            y.append(plate_group[plate_group['Experiment Name'] == t]['Avg Exp'].tolist())
+            y_mean.append(plate_group[plate_group['Experiment Name'] == t].groupby('ASO Microsynth ID',sort=False)['Avg Exp'].mean().tolist())
+            yerr.append(plate_group[plate_group['Experiment Name'] == t].groupby('ASO Microsynth ID',sort=False)['Exp_std'].first().tolist())
+            transform = Affine2D().translate(spacing*idx-spacing, 0.0) + ax.transData
+
+            scatter.append(ax.scatter(x2, y[idx], c=colors[idx], s=25, transform=transform))
+            err.append(ax.errorbar(x, y_mean[idx], yerr[idx], linestyle='none', c=colors[idx],fmt='s', markersize=2.5, transform=transform ))
+
+
+        # TODO: change alpha value for dosage
+        # bool_10 = df['SampleName'].str.contains('_10').tolist()
+        # alphas = [1.0 if x else 0.5 for x in bool_10]
 
         plt.xticks(rotation=40, ha='right')
-        plt.ylabel('Average Expression')
-        plt.title('Plate ' + str(plate_no) + ' Avg Exp')
+        plt.grid(True, axis='y', linestyle=':', linewidth=2, zorder=32)
+        plt.ylabel('KCNQ2 Expression')
+        # plt.xlabel('ASOs')
+        # if renormalized to neg change title
+        if config.RENORMALIZE:
+            title = config.ROUND + ' Plate ' + str(plate_no) + ' Normalized to Negative Control'
+        else:
+            title = config.ROUND + ' Plate ' + str(plate_no) + ' Normalized to Naive'
+        plt.title(title)
         plt.suptitle(None)
+        plt.tight_layout()
+        plt.legend(scatter,types)
+        # plt.show()
+        pdf.savefig(fig)
 
-        plt.grid(True)
+    pdf.close()
 
-        plt.show()
-
-
+# scrapped
 def lm_plot(df):
     # plt.subplots(1, 1, figsize=(15, 10))
     # separate by plates
@@ -278,14 +316,15 @@ def lm_plot(df):
         # seaborn implementation
         sns.lmplot("SampleName", "Avg Exp", hue="Experiment Name",
                    data=plate_group, fit_reg=False, x_estimator=np.mean, height=8, aspect=12/8)
-        plt.xticks(ha='right')
+
+        plt.xticks(rotation=40, ha='right')
         plt.ylabel('Average Expression')
         plt.title('Plate ' + str(plate_no) + ' Avg Exp')
         plt.suptitle(None)
 
         plt.show()
 
-
+# scrapped
 def bar_plot(df):
     # plt.subplots(1, 1, figsize=(15, 10))
     # separate by plates
@@ -305,8 +344,72 @@ def bar_plot(df):
         g = sns.FacetGrid(data=plate_group, height=8, aspect=12/8)
         g.map(plt.errorbar, 'SampleName', 'Avg Exp', 'Exp_std', fmt='o', elinewidth=1, capsize=5, capthick=1)
         # g.map_dataframe(sns.pointplot, x='SampleName', y='Avg Exp', hue='Experiment Name',palette=sns.color_palette()).add_legend()
-        plt.xticks(ha='right')
+
+        plt.xticks(rotation=40, ha='right')
         plt.ylabel('Average Expression')
         plt.title('Plate ' + str(plate_no) + ' Avg Exp')
         plt.suptitle(None)
+        plt.show()
+
+# non loop version of error plot only on samples, not naive/control
+def error_plot2(df):
+    df = hide_naive_control(df)
+    # plt.subplots(1, 1, figsize=(15, 10))
+    # keep only _10 mmol
+    # separate by plates
+    df.loc[df['Experiment Name'].str.contains('MT'), 'Experiment Name'] = 'MT'
+    df.loc[df['Experiment Name'].str.contains('Total'), 'Experiment Name'] = 'Total'
+    df.loc[df['Experiment Name'].str.contains('WT'), 'Experiment Name'] = 'WT'
+    df = calc_std(df)
+    # SEM
+    # TODO: check sample size is correct
+    df = calc_sem(df)
+
+    plates = df['Test plate #'].nunique()
+
+    for plate_no in range(1, plates + 1):
+        fig, ax = plt.subplots(figsize=(15,8))
+        plt.grid(True)
+
+        plate_group = df[df['Test plate #'] == plate_no]
+        plate_group = plate_group.dropna(subset=['Avg Exp']).reset_index(drop=True)
+
+        # matplotlib implementation
+        # https://stackoverflow.com/questions/58009069/how-to-avoid-overlapping-error-bars-in-matplotlib
+
+        x = plate_group['ASO Microsynth ID'].unique()
+        x2 = [val for val in x for _ in (0, 1)]
+        y1 = plate_group.loc[plate_group['Experiment Name'] == 'MT', 'Avg Exp'].tolist()
+        y1_mean = plate_group[plate_group['Experiment Name'] == 'MT'].groupby('ASO Microsynth ID')['Avg Exp'].mean().tolist()
+        yerr1 = plate_group[plate_group['Experiment Name'] == 'MT'].groupby('ASO Microsynth ID')['Exp'].std().tolist()
+        y2= plate_group.loc[plate_group['Experiment Name'] == 'WT', 'Avg Exp'].tolist()
+        y2_mean = [sum(y2[i:i+2])/2 for i in range(0,len(y2),2)]
+        yerr2 = plate_group.loc[plate_group['Experiment Name'] == 'WT', 'Exp_std'].tolist()
+        yerr2 = [yerr2[x] for x in range(0,len(yerr2),2)]
+        y3= plate_group.loc[plate_group['Experiment Name'] == 'Total', 'Avg Exp'].tolist()
+        y3_mean = [sum(y3[i:i+2])/2 for i in range(0,len(y3),2)]
+        yerr3 = plate_group.loc[plate_group['Experiment Name'] == 'Total', 'Exp_std'].tolist()
+        yerr3 = [yerr3[x] for x in range(0,len(yerr3),2)]
+
+
+        # TODO: change alpha value for dosage
+        bool_10 = df['SampleName'].str.contains('_10').tolist()
+        alphas = [1.0 if x else 0.5 for x in bool_10]
+
+        trans1 = Affine2D().translate(-0.1, 0.0) + ax.transData
+        trans3 = Affine2D().translate(+0.1, 0.0) + ax.transData
+        er1 = ax.errorbar(x, y1_mean, yerr1, linestyle="none", ecolor='r',  transform=trans1)
+        er2 = ax.errorbar(x, y2_mean, yerr2, linestyle="none", ecolor='b')
+        er3 = ax.errorbar(x, y3_mean, yerr3, linestyle="none", ecolor='g', transform=trans3)
+        mt = ax.scatter(x2, y1, c='r', transform=trans1)
+        wt = ax.scatter(x2, y2, c='b')
+        total = ax.scatter(x2, y3, c='g', transform=trans3)
+
+        plt.xticks(rotation=40, ha='right')
+        plt.ylabel('Average Expression')
+        plt.title('Plate ' + str(plate_no) + ' Avg Exp')
+        plt.suptitle(None)
+        plt.tight_layout()
+        plt.legend([mt,wt,total],['MT', 'WT', 'Total'])
+
         plt.show()

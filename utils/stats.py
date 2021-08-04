@@ -4,29 +4,19 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import colors
 from scipy import stats
-import glob
-import os
 
 # Functions for commonly used stats and all calculations
 
 # get absolute value z score from dataframe on column
 from utils.functions import hide_naive_control, get_avg_exp
+import config
 
-# bins to check intervals on. nomenclature: "10" means 0.1 <= x < 0.2, "90" means 0.9 <= x < inf, etc...
-BINS = np.linspace(0.0,1.0,11) # right = False
-names = list(map(lambda x: '0' + str(x),np.arange(0,100,10)))
-names[0] = '000'
-names.append('100')
-# the name assigned to each bin by corresponding indices
-NAMES = names
-# key starting from 1, names at NAMES
-DICT = dict(enumerate(NAMES, 1))
 
 
 
 def abs_zscore(df, col='Exp'):
     # z score lambda function
-    zscore = lambda x: abs((x - x.mean()) / x.std())
+    zscore = lambda x: abs((x - x.mean()) / x.std(ddof=1))
     # apply to exp column based on sample name]
     # TODO: remove std (for testing)
     df[col +'_std'] = df[col].groupby(df.index // 3).transform('std')
@@ -41,7 +31,7 @@ def redo_dct(df, CP_1='CrossingPoint', CP_2='CrossingPoint.1'):
 # TODO: make it to apply after merging sheets, low priority
 def neg_ddct(df):
     # get all values Ionis676.., group by experiment name/sample name
-    ionis_neg = df[df['SampleName'].str.contains('(Ionis676630|Ionis 676630).*_10', na=False)]
+    ionis_neg = df[df['SampleName'].str.contains('(?:Ionis676630|Ionis 676630).*_10', na=False)]
     # just more convenient to keep all columns
     df['Avg dCt Ionis676630'] = ionis_neg['dCt'].mean()
     # do difference
@@ -52,9 +42,16 @@ def calc_exp(df, col='ddCt', output_col='Exp'):
     expression = lambda x: 2 ** (-x)
     df[output_col] = df[col].transform(expression)
 
+# use unbiased estimator
 def calc_std(df, col='Exp', output_col='Exp std'):
     df['Exp_std'] = df.groupby(['Experiment Name', 'SampleName'])['Exp'].transform('std')
     return df
+
+def calc_sem(df, col='Exp', output_col='Exp SEM'):
+    SEM = lambda x: x.std() / x.count()
+    df['Exp_SEM'] = df.groupby(['Experiment Name', 'SampleName'])['Exp'].transform(SEM)
+    return df
+
 
 # avg zscore by plate
 def avg_plates(df):
@@ -120,8 +117,6 @@ def exp_zscore_range(df):
     # print(df['Exp_zscore'].groupby(df.index // 3).mean())
     mean = df['Exp'].groupby(df.index // 3).transform('mean')
     df.loc[::3, 'Avg Exp'] = mean
-
-    df = hide_naive_control(df)
     # get mean and std over each sample (every 6 replicates) to use on Avg Exp
     mean = df.groupby(['Experiment Name','SampleName'])['Exp'].transform('mean')
     std = df.groupby(['Experiment Name','SampleName'])['Exp'].transform('std')
@@ -142,7 +137,7 @@ def exp_zscore_range(df):
 
 # helper fn: pass MT and WT, assign to tiers
 def create_tier(df, col='Avg Exp', new_col='Tier'):
-    df[new_col] = np.vectorize(DICT.get)(np.digitize(df[col], BINS, right=False))
+    df[new_col] = np.vectorize(config.DICT.get)(np.digitize(df[col], config.BINS, right=False))
 
 
 def tierlist(df):
@@ -196,7 +191,7 @@ def rank_tier(mt, wt):
         tier = '3C'
     return tier
 
-
+# old tier list rankings
 def tierlist2(df):
     # get Avg Exp, group by sample
     df['Tier'] = np.nan
@@ -220,7 +215,7 @@ def tierlist2(df):
     print('count = ' + str(count))
     return df.sort_values(['Tier', 'ASO Microsynth ID'], na_position='last')
 
-# compare 10mmol vs 3mmol
+# compare 10mmol vs 3mmol unused
 def flag_exp(df):
     # search for _3 or _10
     samples = df[df['SampleName'].str.contains("_10|_3")]
