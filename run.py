@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 from tasks import *
+from utils.functions import get_folder
 from pathlib import Path
 import config
 
@@ -25,13 +26,10 @@ def main():
 if __name__=="__main__":
     # Check all directories are created
     # renormalized
-    if config.RENORMALIZE:
-        folder = "normalized_neg"
-    else:
-        folder = "normalized_naive"
+    folder = get_folder()
     Path(folder).mkdir(parents=True, exist_ok=True)
-    Path(folder + "/Control Plots").mkdir(parents=True, exist_ok=True)
-    Path(folder + "/Tiers").mkdir(parents=True, exist_ok=True)
-    Path(folder + "/Z Score Range Plots").mkdir(parents=True, exist_ok=True)
+    Path(folder + "Control Plots").mkdir(parents=True, exist_ok=True)
+    Path(folder + "Tiers").mkdir(parents=True, exist_ok=True)
+    Path(folder + "Z Score Range Plots").mkdir(parents=True, exist_ok=True)
     # run tasks
     main()

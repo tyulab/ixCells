@@ -106,6 +106,6 @@ def get_replicates(df, col='Avg Exp'):
 def get_folder():
     # todo: folder for each experiment
     if config.RENORMALIZE:
-        return "normalized_neg"
+        return config.ROUND + '/normalized_neg/'
     else:
-        return "normalized_naive"
+        return config.ROUND + '/normalized_naive/'

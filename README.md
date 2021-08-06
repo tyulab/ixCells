@@ -21,7 +21,7 @@ C:.
 #### Running the script
 1. Check/install requirements: `pip install -r requirements.txt`
 1. `config.py` open to change options for running figures
-   - Must toggle renormalization and specify folder with round data (e.g. Round 1, Round 2...)
+   - Must specify folder with round data (e.g. Round 1, Round 2...)
 1. `python run.py` to run all figures. To create select figures comment out the irrelevant functions.
     - `run_renata_data.py` run figures on Renata's sheets and similar formatted files
 #### Scripts
@@ -34,10 +34,10 @@ C:.
   - `Control plots`: store plots and figures
 
 ### Todo:
-- [ ] Plots to pdf
-  - [ ] config setting for pdf vs png
-  - [ ] control plates histograms
-  - [ ] r squared
+- [x] Plots to pdf
+  - [x] config setting for pdf vs png
+  - [x] control plates histograms
+  - [x] r squared
 - [ ] Add col for biological replicates B1/B2
   - [ ] rewrite all functions that use separate bio replicates to use new column
     - - [ ] Avg Exp in avg_exp
@@ -45,6 +45,7 @@ C:.
     - - [ ] r^2 plots
   - [ ] fix functions to reformat renata's data to work on same tasks (avg exp, output excluded)
 - [ ] Round prefixes to plot titles
+- [ ] check changes on older rounds, error handling 
   
 #### Future improvements
 - [ ] Rework some variables into dictionaries
@@ -67,3 +68,5 @@ Other possible todos in scripts
     - CrossingPoint
     - CrossingPoint.1
       - crossing point order doesn't matter since it is changed to abs value
+    - dCt (Round 1)
+- Check letter case for type/control/naive search errors

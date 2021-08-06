@@ -64,8 +64,8 @@ def create_output():
     # set threshold on z exp zscores
     threshold = flag_outliers(df, col='Exp_zscore', greater_than=config.Z_SCORE_THRESHOLD)
     dropped = df[threshold].reset_index(drop=True)
-    dropped.to_csv(get_folder()+"/output_dropped.csv")
-    df[~threshold].reset_index(drop=True).to_csv(get_folder()+"/output_filtered.csv")
+    dropped.to_csv(get_folder()+"/output_dropped.csv", index=False)
+    df[~threshold].reset_index(drop=True).to_csv(get_folder()+"/output_filtered.csv", index=False)
     df.loc[threshold,'Exp'] = np.nan
     # df = df[~threshold].reset_index(drop=True)
     # Average z scores
@@ -73,7 +73,7 @@ def create_output():
     # avg_zscore(df)
     assign_plates(df, plate_file)
     avg_plates(df) # can separate this part later?
-    print(df)
+    # print(df)
     # export to output file
     df.to_csv(output_file, index=False)
 
@@ -116,7 +116,7 @@ def create_tiers():
     dropped_groups = dropped.groupby('SampleName').first().sort_values(['SampleName'], na_position='last')
     dropped_groups = dropped_groups[['ASO Microsynth ID', 'Test plate #']]
     dropped_groups['Threshold: ' + str(config.TIERS_THRESHOLD)] = np.nan
-    dropped_groups.to_csv(get_folder()+"/Tiers/tiers_dropped.csv", index=True)
+    dropped_groups.to_csv(get_folder()+"Tiers/tiers_dropped.csv", index=True)
 
     # remove anything in dropped samples from tiering
     dropped_samples = dropped['SampleName'].unique()
@@ -125,13 +125,13 @@ def create_tiers():
     tiers = tierlist(df)
 
     tiers.sort_values(['Tier','SampleName'], ascending=True, inplace=True)
-    tiers.to_csv(get_folder()+"/Tiers/tiers.csv", index=True)
+    tiers.to_csv(get_folder()+"Tiers/tiers.csv", index=True)
 
 
 # make control histograms
 def create_control_hist():
     # default path for table to read from
-    table_file = get_folder()+"/output.csv"
+    table_file = get_folder()+"output.csv"
     plate_output = "plates_table.csv"
     # store in df
     df = pd.read_csv(table_file, encoding='latin-1')
@@ -144,14 +144,10 @@ def create_control_hist():
     # histogram
     control_hist(df)
 
-    # # drop columns/nan rows and export
-    # plates = drop_nan(df)
-    # plates.to_csv(get_folder()+"/" + plate_output, index=False)
-
 
 def create_tier_plots():
     print("create tier plots")
-    file = get_folder()+"/Tiers/tiers.csv"
+    file = get_folder()+"Tiers/tiers.csv"
     # lst of column names which needs to be string
     lst_str_cols = ['Tier']
     # use dictionary comprehension to make dict of dtypes
@@ -163,7 +159,7 @@ def create_tier_plots():
 
 # r squared analysis
 def create_r_squared():
-    file = get_folder()+"/avg_exp.csv"
+    file = get_folder()+"avg_exp.csv"
     # store in df
     df = pd.read_csv(file, encoding='latin-1')
     pd.set_option('display.max_columns', None)
@@ -174,14 +170,19 @@ def create_r_squared():
 
     # keep only 10mmol
     df = df[df['SampleName'].str.contains('_10')]
+
+    pdf = matplotlib.backends.backend_pdf.PdfPages(get_folder() + 'r_squared.pdf')
     # get replicates
     for type in ['WT','MT']:
         type_df = get_type(df, type=type)
         b1,b2 = get_replicates(type_df)
-        r2_plot(b1,b2,title=type)
+        fig = r2_plot(b1,b2,title=type)
+        pdf.savefig(fig)
+
+    pdf.close()
 
 def create_error_bars():
-    file = get_folder()+"/avg_exp.csv"
+    file = get_folder()+"avg_exp.csv"
     # store in df
     df = pd.read_csv(file, encoding='latin-1')
     pd.set_option('display.max_columns', None)

@@ -17,19 +17,32 @@ from utils.functions import *
 import config
 
 def type_hist(df, col):
+    pdf = matplotlib.backends.backend_pdf.PdfPages(get_folder() + 'Z Score Range Plots/Exp zscore hist.pdf')
+
+    # hide naive/control
+    df = hide_naive_control(df)
+
     # separate into WT, MT, total
     df_no_na = df.dropna(subset=[col]).reset_index(drop=True)
-    types = ['WT','MT','total']
+    types = ['WT','MT','Total']
+
+
     for i in range(len(types)):
         type_df = df_no_na[df_no_na['Experiment Name'].str.contains(types[i], case=False)]
-        type_df.hist(column=col, bins=20)
+        ax = type_df.hist(column=col, bins=20).ravel()[0].get_figure()
         plt.title("Exp zscore ranges for "+types[i])
         plt.xlabel('Exp zscore range')
         # save the dfs in case
-        type_df.to_csv(get_folder()+"/Z Score Range Plots/Exp zscore "+types[i]+".csv", index=False)
-        plt.savefig(get_folder()+'/Z Score Range Plots/' + 'Exp zscore hist ' + types[i] + '.png')
-    if config.SHOW_PLOTS:
-        plt.show()
+        type_df.to_csv(get_folder()+"Z Score Range Plots/Exp zscore "+types[i]+".csv", index=False)
+        if config.SAVE_FIG_AS == 'pdf':
+            # fig = ax[0].get_figure()
+            pdf.savefig(ax)
+        else:
+            plt.savefig(get_folder() +'Z Score Range Plots/' + 'Exp zscore hist ' + types[i] + '.png')
+        if config.SHOW_PLOTS:
+            plt.show()
+
+    pdf.close()
 
 # create histogram for controls with matplotlib
 def control_hist(df):
@@ -38,12 +51,12 @@ def control_hist(df):
     # separate _3 from _10
     df = df[['Experiment Name', 'Position', 'SampleName', 'ASO Microsynth ID', 'Exp', 'Test plate #']]# .dropna(subset=['Exp'])
     controls = df['SampleName'].str.contains('Ionis|Naive')
-    df[controls].to_csv(get_folder()+"/Control Plots/controls.csv", index=False)
+    df[controls].to_csv(get_folder()+"Control Plots/controls.csv", index=False)
     control_10 = df[controls & df['SampleName'].str.contains('_10')].reset_index(drop=True)
     control_3 = df[controls & df['SampleName'].str.contains('_3')].reset_index(drop=True)
     # print(control_10)
-    control_10.to_csv(get_folder()+"/controls_10.csv", index=False)
-    control_3.to_csv(get_folder()+"/controls_3.csv", index=False)
+    control_10.to_csv(get_folder()+"Control Plots/controls_10.csv", index=False)
+    control_3.to_csv(get_folder()+"Control Plots/controls_3.csv", index=False)
     if not control_10.empty:
         hist_plates(control_10, "hist_10", title='10mmol Plates')
     if not control_3.empty:
@@ -51,6 +64,8 @@ def control_hist(df):
 
 # helper function to create histograms by plates
 def hist_plates(control, file_prefix="hist", title='Plates'):
+    pdf = matplotlib.backends.backend_pdf.PdfPages(get_folder() + 'Control Plots/'+file_prefix + '.pdf')
+
     # export df used for histogram
     control['SampleName'] = control['SampleName'].str.split('_').str[0]
     group_samples = control.groupby('SampleName')
@@ -66,12 +81,13 @@ def hist_plates(control, file_prefix="hist", title='Plates'):
     layout = (3,3)
     plates = control['Test plate #'].nunique()
     for i in tqdm(range(1,plates+1,step)):
-        # fig, axes = plt.subplots(sharex=True, sharey=True)
+        # fig, ax1 = plt.subplots(nrows=layout[0], ncols=layout[1])
         plt.margins(x=0, y=0)
         rem = plates-i+1
         axes = pos_df[pos_df['Test plate #'].between(i, i+step-1)].hist( \
-            column='Exp',by=pos_df['Test plate #'], layout=layout, \
-            sharex=True, sharey=True, figsize=(6,7), xrot=0, alpha=0.5, label='Ionis1375651', bins=5)
+            column='Exp',by=pos_df['Test plate #'], layout=layout, # ax = ax1,\
+             sharex=True, sharey=True, figsize=(6,7), xrot=0, \
+            alpha=0.5, label='Ionis1375651', bins=5)
         axes = axes.ravel()[:min(rem,step)]
 
         # plt.yticks(np.linspace(0, 10, num=6, endpoint=True))
@@ -95,9 +111,15 @@ def hist_plates(control, file_prefix="hist", title='Plates'):
             ax.xaxis.set_tick_params(labelbottom=True)
             ax.yaxis.set_tick_params(labelbottom=True)
 
-        plt.savefig(get_folder()+'/Control Plots/'+file_prefix+' '+str(i)+'-'+str(i+min(rem,step)-1)+'.png')
+        # https://stackoverflow.com/a/67202037
+        fig = axes.ravel()[0].get_figure()
+        if config.SAVE_FIG_AS == 'pdf':
+            pdf.savefig(fig)
+        else:
+            plt.savefig(get_folder()+'Control Plots/'+file_prefix+' '+str(i)+'-'+str(i+min(rem,step)-1)+'.png')
     if config.SHOW_PLOTS:
         plt.show()
+    pdf.close()
 
 # helper function to create scatter plot for the tiers df
 def tier_scatter(df, title='Tiers by MT/WT'):
@@ -109,10 +131,10 @@ def tier_scatter(df, title='Tiers by MT/WT'):
     # bounds = [0, 10, 20]
     # norm = colors.BoundaryNorm(bounds, cmap.N)
 
-    ax1 = df.plot.scatter(x='WT Avg Exp', y = 'MT Avg Exp') # alpha=0.5
+    df.plot.scatter(x='WT Avg Exp', y = 'MT Avg Exp') # alpha=0.5
 
     plt.title(title)
-    plt.savefig(get_folder()+'/Tiers/scatter_uncropped.pdf')
+    plt.savefig(get_folder()+'Tiers/scatter_uncropped.pdf')
 
     df = df[df['MT Avg Exp'] <= 110]
     df = df[df['WT Avg Exp'] <= 110]
@@ -123,11 +145,11 @@ def tier_scatter(df, title='Tiers by MT/WT'):
     plt.yticks(np.linspace(0,110,num=12,endpoint=True))
     plt.grid(True)
 
-    plt.savefig(get_folder()+'/Tiers/scatter.pdf')
+    plt.savefig(get_folder()+'Tiers/scatter.pdf')
     if config.SHOW_PLOTS:
         plt.show()
 
-
+# create r2 plots
 def r2_plot(y_test,y_predicted, title):
     fig, ax = plt.subplots()
     ax.scatter(y_test, y_predicted)
@@ -138,13 +160,13 @@ def r2_plot(y_test,y_predicted, title):
     y_test, y_predicted = y_test.reshape(-1, 1), y_predicted.reshape(-1, 1)
     ax.plot(y_test, LinearRegression().fit(y_test, y_predicted).predict(y_test), color='red', linewidth=0.75)
     ax.set_title(title+' R2: ' + str(r2_score(y_test, y_predicted)))
-    plt.savefig(get_folder()+'/'+title+'_R2.pdf')
+    plt.savefig(get_folder()+title+'_R2.pdf')
+    return fig
     if config.SHOW_PLOTS:
         plt.show()
 
-
+# create error bar plots similar to prism output
 def error_plot(df):
-    pdf = matplotlib.backends.backend_pdf.PdfPages(get_folder()+'/'+config.ROUND+' kcnq2_exp.pdf')
     spacing = 0.1
 
     # plt.subplots(1, 1, figsize=(15, 10))
@@ -160,9 +182,15 @@ def error_plot(df):
 
     plates = df['Test plate #'].nunique()
 
+    pdf_name = get_folder()+config.ROUND+' kcnq2_exp'
+    pdf = matplotlib.backends.backend_pdf.PdfPages(pdf_name+'.pdf')
+    # if plates > 20:
+    #     pdf = matplotlib.backends.backend_pdf.PdfPages(pdf_name+'_P1-20.pdf')
+
     for plate_no in tqdm(range(1, plates + 1)):
         fig, ax = plt.subplots(figsize=(15,8))
 
+        # TODO: make sure no plates are skipped (Round 1 issue)
         plate = df[df['Test plate #'] == plate_no]
         plate = plate.dropna(subset=['Avg Exp']).reset_index(drop=True)
         # plate_group = plate
@@ -180,7 +208,7 @@ def error_plot(df):
 
         # matplotlib implementation
         # https://stackoverflow.com/questions/58009069/how-to-avoid-overlapping-error-bars-in-matplotlib
-
+        # TODO: delete some unused list
         y = []
         y_mean = []
         yerr = []
@@ -191,12 +219,12 @@ def error_plot(df):
 
         for idx, t in enumerate(types):
             # unique names of samples
-            x = plate_group[plate_group['Experiment Name'] == t]['ASO Microsynth ID'].unique()
+            x = plate_group[plate_group['Experiment Name'].str.contains(t, case=False)]['ASO Microsynth ID'].unique()
             # all occurences of avg exp points
-            x2 = plate_group[plate_group['Experiment Name'] == t]['ASO Microsynth ID'].tolist()
-            y.append(plate_group[plate_group['Experiment Name'] == t]['Avg Exp'].tolist())
-            y_mean.append(plate_group[plate_group['Experiment Name'] == t].groupby('ASO Microsynth ID',sort=False)['Avg Exp'].mean().tolist())
-            yerr.append(plate_group[plate_group['Experiment Name'] == t].groupby('ASO Microsynth ID',sort=False)['Exp_std'].first().tolist())
+            x2 = plate_group[plate_group['Experiment Name'].str.contains(t, case=False)]['ASO Microsynth ID'].tolist()
+            y.append(plate_group[plate_group['Experiment Name'].str.contains(t, case=False)]['Avg Exp'].tolist())
+            y_mean.append(plate_group[plate_group['Experiment Name'].str.contains(t, case=False)].groupby('ASO Microsynth ID',sort=False)['Avg Exp'].mean().tolist())
+            yerr.append(plate_group[plate_group['Experiment Name'].str.contains(t, case=False)].groupby('ASO Microsynth ID',sort=False)['Exp_std'].first().tolist())
             transform = Affine2D().translate(spacing*idx-spacing, 0.0) + ax.transData
 
             scatter.append(ax.scatter(x2, y[idx], c=colors[idx], s=25, transform=transform))
@@ -228,7 +256,14 @@ def error_plot(df):
         plt.legend(scatter,types)
         if config.SHOW_PLOTS:
             plt.show()
+
         pdf.savefig(fig)
+
+        plt.close()
+
+        # if plate_no % 20 == 0:
+        #     pdf.close()
+        #     pdf = matplotlib.backends.backend_pdf.PdfPages(pdf_name+'_P'+str(plate_no+1)+'-'+str(min(plate_no+19,plates))+'.pdf')
 
     pdf.close()
 

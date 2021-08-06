@@ -140,6 +140,7 @@ def create_file():
 
 # helper function to separate values into belonging to biological replicate 1 or 2 and return as tuple of arrays
 def get_replicates(df, type):
+    # FIXME: move replicate info to new column
     b1 = df[df['Experiment Name'].str.contains('_1')].replace(to_replace='_1$|_2$', value='', regex=True)
     b2 = df[df['Experiment Name'].str.contains('_2')].replace(to_replace='_1$|_2$', value='', regex=True)
     s1 = pd.merge(b1, b2, how='inner', on=['Experiment Name', 'SampleName'],suffixes=('_1','_2'))

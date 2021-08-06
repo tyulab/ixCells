@@ -21,17 +21,36 @@ def abs_zscore(df, col='Exp'):
     df[col +'_std'] = df[col].groupby(df.index // 3).transform('std')
     df[col+'_zscore'] = df.groupby(['Experiment Name','SampleName'])[col].transform(zscore)
 
-# redo dCt based on Crossing Point
+# redo dCt calculation based on Crossing Point
 def redo_dct(df, CP_1='CrossingPoint', CP_2='CrossingPoint.1'):
-    df['dCt'] = abs(df[CP_1]-df[CP_2])
-    return df
+    try:
+        # try to use crossing point cols
+        df.loc[df[CP_1] == ' ', CP_1] = np.nan
+        df.loc[df[CP_2] == ' ', CP_2] = np.nan
+        df[CP_1] = pd.to_numeric(df[CP_1])
+        df[CP_2] = pd.to_numeric(df[CP_2])
+        df['dCt'] = abs(df[CP_1]-df[CP_2])
+    except:
+        # try on FAM/HEX instead
+        try:
+            CP_1 = 'FAM'
+            CP_2 = 'HEX'
+            df.loc[df[CP_1] == ' ', CP_1] = np.nan
+            df.loc[df[CP_2] == ' ', CP_2] = np.nan
+            df[CP_1] = pd.to_numeric(df[CP_1])
+            df[CP_2] = pd.to_numeric(df[CP_2])
+            df['dCt'] = abs(df[CP_1]-df[CP_2])
+        finally:
+            return df
+    finally:
+        return df
 
 # redo ddCt normalized on neg control
 # TODO: make it to apply after merging sheets, low priority
 def neg_ddct(df):
     # get all values Ionis676.., group by experiment name/sample name
     ionis_neg = df[df['SampleName'].str.contains('(?:Ionis676630|Ionis 676630).*_10', na=False)]
-    # just more convenient to keep all columns
+    # keep  columns for comparison
     df['Avg dCt Ionis676630'] = ionis_neg['dCt'].mean()
     # do difference
     df['ddCt'] = df['dCt'] - df['Avg dCt Ionis676630']
