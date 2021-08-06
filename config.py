@@ -4,7 +4,7 @@ TIERS_THRESHOLD = 1.5
 Z_SCORE_THRESHOLD = 1.8
 naive = 'Naive'
 neg_control = '(Ionis676630|Ionis 676630).*_10'
-RENORMALIZE = False
+RENORMALIZE = True
 ROUND = 'Round 2.3'
 
 # bins to check intervals on. nomenclature: "10" means 0.1 <= x < 0.2, "90" means 0.9 <= x < inf, etc...

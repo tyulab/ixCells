@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import pandas as pd
 import numpy as np
+import math
 import matplotlib.pyplot as plt
 from matplotlib import colors
 from scipy import stats
@@ -48,7 +49,7 @@ def calc_std(df, col='Exp', output_col='Exp std'):
     return df
 
 def calc_sem(df, col='Exp', output_col='Exp SEM'):
-    SEM = lambda x: x.std() / x.count()
+    SEM = lambda x: x.std() / math.sqrt(x.count())
     df['Exp_SEM'] = df.groupby(['Experiment Name', 'SampleName'])['Exp'].transform(SEM)
     return df
 

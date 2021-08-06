@@ -229,7 +229,6 @@ def error_plot(df):
     df.loc[df['Experiment Name'].str.contains('WT'), 'Experiment Name'] = 'WT'
     df = calc_std(df)
     # # SEM
-    # # TODO: check sample size is correct
     # df = calc_sem(df)
 
 
@@ -245,11 +244,15 @@ def error_plot(df):
         # plate_group = plate
 
         # re-order naive to left of graph?
-        naive = plate['ASO Microsynth ID'].str.contains('Naive')
+        naive = plate['ASO Microsynth ID'].str.contains('Naive', case=False)
         naive_index = plate.index[naive].tolist()
-        other_index = plate.index[~naive].tolist()
+        # re-order ionis
+        ionis = plate['ASO Microsynth ID'].str.contains('Ionis', case=False)
+        ionis_index = plate.index[ionis].tolist()
+        other_index = plate.index[~naive & ~ionis].tolist()
         # plate = pd.concat([plate[naive], df[~naive]], ignore_index=True).copy()
-        plate_group = plate.reindex(naive_index + other_index).reset_index(drop=True).copy()
+        plate_group = plate.reindex(naive_index + ionis_index + other_index).reset_index(drop=True).copy()
+
 
         # matplotlib implementation
         # https://stackoverflow.com/questions/58009069/how-to-avoid-overlapping-error-bars-in-matplotlib
@@ -283,6 +286,12 @@ def error_plot(df):
         plt.xticks(rotation=40, ha='right')
         plt.grid(True, axis='y', linestyle=':', linewidth=2, zorder=32)
         plt.ylabel('KCNQ2 Expression')
+        if config.RENORMALIZE:
+            plt.ylim(0, 3)
+            plt.yticks(np.linspace(0, 3, 7))
+        else:
+            plt.ylim(0,1.5)
+            plt.yticks(np.linspace(0,1.5,7))
         # plt.xlabel('ASOs')
         # if renormalized to neg change title
         if config.RENORMALIZE:
