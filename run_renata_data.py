@@ -167,6 +167,5 @@ def r_squared():
 
 
 if __name__ == "__main__":
-    # create_file()
-    # make_std_hist()
+    create_file()
     r_squared()

@@ -6,13 +6,11 @@ import matplotlib.pyplot as plt
 from matplotlib import colors
 from scipy import stats
 
-# Functions for commonly used stats and all calculations
+# Functions for commonly used math and all calculations
 
 # get absolute value z score from dataframe on column
 from utils.functions import hide_naive_control, get_avg_exp
 import config
-
-
 
 
 def abs_zscore(df, col='Exp'):
@@ -129,9 +127,6 @@ def exp_zscore_range(df):
     # apply to exp column based on sample name
     # print(df.groupby(['Experiment Name','SampleName']).groups.keys())
     df['Avg Exp_zscore range'] = df.groupby(['Experiment Name', 'SampleName'])['Avg Exp_zscore'].transform(range)
-    # # set duplicate values to nan
-    # duplicate = df.duplicated(['SampleName', 'Avg Exp_zscore range'], keep='first')
-    # df.loc[duplicate, 'Avg Exp_zscore range'] = np.nan
 
     # two_sample_ttest(df, 'Exp') # confirm results
     return df
@@ -142,103 +137,29 @@ def create_tier(df, col='Avg Exp', new_col='Tier'):
 
 
 def tierlist(df):
-    # get Avg Exp, group by sample
+    # get mean expression of sample
     df['Avg Exp'] = df.groupby(['Experiment Name','SampleName'])['Exp'].transform('mean')
-    # df.to_csv("output/avg_exp.csv", index=False)
+    # create MT and WT views
     df_mt = df[df['Experiment Name'].str.contains('MT', case=False)].reset_index(drop=True)[['SampleName','ASO Microsynth ID','Test plate #','Avg Exp']]
     df_wt = df[df['Experiment Name'].str.contains('WT', case=False)].reset_index(drop=True)[['SampleName','ASO Microsynth ID','Test plate #','Avg Exp']]
     df = df[['SampleName','ASO Microsynth ID','Avg Exp']]
     # df['Tier'] = np.nan
+    # group by name and keep only first row #todo: calculate mean here instead?
     df_mt = df_mt.groupby(df_mt['SampleName']).first()
+    # rename avg exp in MT
     df_mt = df_mt.rename(columns={'Avg Exp': 'MT Avg Exp'})
     df_wt = df_wt.groupby(df_wt['SampleName']).first()
-    df_mt.to_csv("output/df_mt.csv")
-    df_wt.to_csv("output/df_wt.csv")
-    # TODO: make sure count is even
+    # save views
+    # df_mt.to_csv(get_folder()+"/df_mt.csv")
+    # df_wt.to_csv(get_folder()+"/df_wt.csv")
+    # TODO: make sure count of both is correct
+    # add WT Avg exp column to df_mt
     df_mt['WT Avg Exp'] = df_wt['Avg Exp']
+
+    # create tiers for both df_mt, df_wt views
     create_tier(df_mt, col='MT Avg Exp', new_col='Tier')
     create_tier(df_wt, new_col='Tier')
+    # concat string for final tier name
     df_mt['Tier'] = df_mt['Tier']+df_wt['Tier']
     # df_mt['Tier'] = df_mt['Tier'].astype(int)
     return df_mt
-    # return df.sort_values(['Tier', 'ASO Microsynth ID'], na_position='last')
-
-
-# old helper fn to pass MT and WT, assign to tiers
-def rank_tier(mt, wt):
-    tier = np.nan
-    if mt < 0.2:  # tier 1
-        if wt > 0.8:
-            tier = '1A'
-        elif wt > 0.7:
-            tier = '1B'
-        elif wt > 0.6:
-            tier = '1C'
-    elif mt < 0.3:  # tier 2
-        if wt > 0.6:
-            tier = '2A'
-        elif wt > 0.5:
-            tier = '2B'
-        elif wt > 0.4:
-            tier = '2C'
-        elif wt > 0.3:
-            tier = '2D'
-    elif mt < 0.4:  # tier 3
-        if wt > 0.7:
-            tier = '3A'
-        elif wt > 0.6:
-            tier = '3B'
-    elif mt < 0.5 and wt > 0.7:
-        tier = '3C'
-    return tier
-
-# old tier list rankings
-def tierlist2(df):
-    # get Avg Exp, group by sample
-    df['Tier'] = np.nan
-    df['Avg Exp'] = df.groupby(['Experiment Name','SampleName'])['Avg Exp'].transform('mean')
-    df.to_csv("output/avg_exp.csv")
-    df_mt = df[df['Experiment Name'].str.contains('MT', case=False)].reset_index(drop=True)
-    df_wt = df[df['Experiment Name'].str.contains('WT', case=False)].reset_index(drop=True)
-    df_mt = df_mt['Avg Exp'].groupby(df_mt['SampleName']).mean()
-    df_wt = df_wt['Avg Exp'].groupby(df_wt['SampleName']).mean()
-    df_mt.to_csv("output/df_mt.csv")
-    df_wt.to_csv("output/df_wt.csv")
-    samples = df['SampleName'].unique()
-    count = 0
-    for sample in samples:
-        mt_avg_exp = get_avg_exp(df_mt, sample)
-        wt_avg_exp = get_avg_exp(df_wt, sample)
-        if mt_avg_exp is not None and wt_avg_exp is not None:
-            count += 1
-            tier = rank_tier(mt_avg_exp, wt_avg_exp)
-            df.loc[df['SampleName'].str.contains(sample),'Tier'] = tier
-    print('count = ' + str(count))
-    return df.sort_values(['Tier', 'ASO Microsynth ID'], na_position='last')
-
-# compare 10mmol vs 3mmol unused
-def flag_exp(df):
-    # search for _3 or _10
-    samples = df[df['SampleName'].str.contains("_10|_3")]
-    # avg exp over samples
-    mean = samples['Exp'].groupby(samples['SampleName']).transform('mean')
-    df.loc[df['SampleName'].str.contains("_10|_3"),'Avg_exp'] = mean
-    # drop dupes and exp column
-    df = df.drop(columns='Exp')
-    df = df.drop_duplicates(['SampleName', 'Avg_exp']).sort_values(['SampleName']).dropna(subset=['Avg_exp']).reset_index(drop=True)
-    # separate _10 and _3 and merge
-    _10 = df[df['SampleName'].str.contains("_10")].copy()
-    _10['SampleName'] = _10['SampleName'].str.replace("_10","")
-    _3 = df[df['SampleName'].str.contains("_3")].copy()
-    _3['SampleName'] = _3['SampleName'].str.replace("_3", "")
-    new_df = _10.merge(_3, on=['Experiment Name', 'SampleName', 'Test plate #'], suffixes=("_10","_3"))
-    cols = new_df.columns.tolist()
-    cols[2:] = sorted(cols[2:])
-    new_df = new_df[cols]
-    plates = new_df['Test plate #']
-    new_df.drop(columns=['Test plate #'], inplace=True)
-    new_df.insert(2,'Test plate #', plates)
-    # make flag col based on two columns
-    new_df['10mmol > 3mmol'] = new_df['Avg_exp_10'].gt(new_df['Avg_exp_3'])
-    # print(new_df['10mmol > 3mmol'].value_counts())
-    new_df.to_csv("output/dose_response.csv", index=False)

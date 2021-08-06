@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import glob
 import os
+import config
 
 # Store commonly used helper functions (loading files, filtering)
 
@@ -101,3 +102,10 @@ def get_replicates(df, col='Avg Exp'):
     b1 = groups.nth(0).reset_index()[col]
     b2 = groups.nth(1).reset_index()[col]
     return b1.to_numpy(),b2.to_numpy()
+
+def get_folder():
+    # todo: folder for each experiment
+    if config.RENORMALIZE:
+        return "normalized_neg"
+    else:
+        return "normalized_naive"
