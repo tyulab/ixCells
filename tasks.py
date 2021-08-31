@@ -13,7 +13,8 @@ import config
 def create_output():
     # specify path to folder containing all csvs and plate sheet + output to be ignored
     # TODO: specify round in config file
-    path = config.ROUND+"\data"
+    path = config.ROUND+"/data"
+    print(path)
     # For Round 1
     plate_file = "ixCells_Round 1_2021-06-22_TN09_551ASOs_plate id adjusted.csv"
     output_file = get_folder() + "/output.csv"
@@ -169,17 +170,25 @@ def create_r_squared():
     df = hide_naive_control(df)
 
     # keep only 10mmol
-    df = df[df['SampleName'].str.contains('_10')]
+    #df = df[df['SampleName'].str.contains('_10')]
 
-    pdf = matplotlib.backends.backend_pdf.PdfPages(get_folder() + 'r_squared.pdf')
-    # get replicates
-    for type in ['WT','MT']:
-        type_df = get_type(df, type=type)
-        b1,b2 = get_replicates(type_df)
-        fig = r2_plot(b1,b2,title=type)
-        pdf.savefig(fig)
-
+    #output_file = open("all_r_squared.tsv", "w+") 
+    #output_file.write("Experiment\tr2\n") ## only write once so we can just add all exp to it
+    output_file = open("all_r_squared.tsv", "a") # tsv file of r2 values
+    pdf = matplotlib.backends.backend_pdf.PdfPages(get_folder() + config.ROUND + ' r_squared.pdf')
+    # get replicates for each plate
+    plates = df['Test plate #'].unique()
+    for plate in plates:
+        print("Plotting r2 plate ", plate)
+        df_plate = df[df['Test plate #']== plate]
+        for type in ['WT','MT']:
+            type_df = get_type(df_plate, type=type)
+            b1,b2 = get_replicates(type_df)
+            title = config.ROUND + " " + str(plate) + " " + str(type) + " all" 
+            fig = r2_plot(b1,b2,title=title, output_file=output_file)
+            pdf.savefig(fig)
     pdf.close()
+
 
 def create_error_bars():
     file = get_folder()+"avg_exp.csv"

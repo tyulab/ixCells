@@ -1,9 +1,9 @@
 import numpy as np
 
 # Folder for Round with data (also used in plot titles)
-ROUND = 'Round 2.3'
+ROUND = 'Round 1 AS'
 # True if normalized to negative
-RENORMALIZE = True
+RENORMALIZE = False
 
 
 # Initial Z score threshold (remove entries in output csv and send to output_dropped)

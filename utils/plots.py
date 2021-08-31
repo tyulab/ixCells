@@ -150,7 +150,7 @@ def tier_scatter(df, title='Tiers by MT/WT'):
         plt.show()
 
 # create r2 plots
-def r2_plot(y_test,y_predicted, title):
+def r2_plot(y_test,y_predicted, title, output_file):
     fig, ax = plt.subplots()
     ax.scatter(y_test, y_predicted)
     # ax.plot([y_test.min(), y_test.max()], [y_predicted.min(), y_predicted.max()], 'k--', lw=4)
@@ -158,9 +158,14 @@ def r2_plot(y_test,y_predicted, title):
     ax.set_ylabel('B2')
     # regression line
     y_test, y_predicted = y_test.reshape(-1, 1), y_predicted.reshape(-1, 1)
-    ax.plot(y_test, LinearRegression().fit(y_test, y_predicted).predict(y_test), color='red', linewidth=0.75)
-    ax.set_title(title+' R2: ' + str(r2_score(y_test, y_predicted)))
-    plt.savefig(get_folder()+title+'_R2.pdf')
+    model= LinearRegression().fit(y_test, y_predicted) # Added by AS
+    ax.plot(y_test, model.predict(y_test), color='red', linewidth=0.75) # Added by AS
+    r2 = str(model.score(y_test, y_predicted)) # Added by AS
+    ax.set_title(title + ' R2: ' + r2) # Added by AS
+    #ax.plot(y_test, LinearRegression().fit(y_test, y_predicted).predict(y_test), color='red', linewidth=0.75) #KD
+    #ax.set_title(title+' R2: ' + str(r2_score(y_test, y_predicted))) #KD
+    #plt.savefig(get_folder()+title+'_R2.pdf')
+    output_file.write("{}\t{}\n".format(title, r2))
     return fig
     if config.SHOW_PLOTS:
         plt.show()

@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import pandas as pd
 import numpy as np
+import matplotlib
 import matplotlib.pyplot as plt
 
 # create histogram for controls with matplotlib
@@ -9,20 +10,20 @@ from utils import stats
 from utils.plots import r2_plot
 
 
-def control_hist(df):
-    # pos = "Ionis 1375651"
-    # neg = "Ionis 676630"
-    # separate _3 from _10
-    df = df[['Experiment Name','SampleName', 'ASO Microsynth ID', 'Avg Exp']]# .dropna(subset=['Avg Exp'])
-    controls = df['SampleName'].str.contains('Ionis', case=False)
-    df[controls].to_csv("output/renata_controls.csv", index=False)
-    control_10 = df[controls & df['SampleName'].str.contains('_10')].reset_index(drop=True)
-    control_3 = df[controls & df['SampleName'].str.contains('_3')].reset_index(drop=True)
+# def control_hist(df):
+#     # pos = "Ionis 1375651"
+#     # neg = "Ionis 676630"
+#     # separate _3 from _10
+#     df = df[['Experiment Name','SampleName', 'ASO Microsynth ID', 'Avg Exp']]# .dropna(subset=['Avg Exp'])
+#     controls = df['SampleName'].str.contains('Ionis', case=False)
+#     df[controls].to_csv("Renata/output/renata_controls.csv", index=False)
+#     control_10 = df[controls & df['SampleName'].str.contains('_10')].reset_index(drop=True)
+#     control_3 = df[controls & df['SampleName'].str.contains('_3')].reset_index(drop=True)
 
-    control_10.to_csv("output/renata_controls_10.csv", index=False)
-    control_3.to_csv("output/renata_controls_3.csv", index=False)
-    hist(control_10, "renata_hist_10", title='Avg Exp 10mmol')
-    hist(control_3, "renata_hist_3", title='Avg Exp 3mmol')
+#     control_10.to_csv("Renata/output/renata_controls_10.csv", index=False)
+#     control_3.to_csv("Renata/output/renata_controls_3.csv", index=False)
+#     hist(control_10, "renata_hist_10", title='Avg Exp 10mmol')
+#     hist(control_3, "renata_hist_3", title='Avg Exp 3mmol')
 
 # TODO: parameter for title of plot
 def hist(control, file_prefix="hist", title='Plates'):
@@ -63,7 +64,7 @@ def hist(control, file_prefix="hist", title='Plates'):
         ax.xaxis.set_tick_params(labelbottom=True)
         ax.yaxis.set_tick_params(labelbottom=True)
 
-    plt.savefig('plots/'+file_prefix+'.png')
+    plt.savefig('Renata/plots/'+file_prefix+'.png')
     # plt.show()
 
 # same as in dose response file
@@ -85,8 +86,8 @@ def std_hist(df, col='Exp std', color='b'):
     #     plt.title("Exp zscore ranges for "+types[i])
     #     plt.xlabel('Exp zscore range')
     #     # save the dfs in case
-    #     type_df.to_csv("output/Exp zscore "+types[i]+".csv", index=False)
-    #     plt.savefig('plots/' + 'Exp zscore hist ' + types[i] + '.png')
+    #     type_df.to_csv("Renata/output/Exp zscore "+types[i]+".csv", index=False)
+    #     plt.savefig('Renata/plots/' + 'Exp zscore hist ' + types[i] + '.png')
 
 
     # fig, axes = plt.subplots(sharex=True, sharey=True)
@@ -107,8 +108,8 @@ def std_hist(df, col='Exp std', color='b'):
     plt.show()
 
 def make_std_hist():
-    data_file_1 = "output/renata data.csv"
-    data_file_2 = "output/output.csv"
+    data_file_1 = "Renata/output/renata data.csv"
+    data_file_2 = "Renata/output/output.csv"
     # store in df
     df1 = pd.read_csv(data_file_1, encoding='latin-1')
     df2 = pd.read_csv(data_file_2, encoding='latin-1')
@@ -125,8 +126,8 @@ def make_std_hist():
 # change renata's data to fit ixcell scripts
 def create_file():
     # default path for table to read from
-    data_file = "data/renata data.csv"
-    # store in df
+    data_file = "Renata/data/renata data.csv"
+    # store in dfrenata data.csv
     df = pd.read_csv(data_file, encoding='latin-1')
     df.columns = df.columns.str.strip()
     pd.set_option('display.max_columns', None)
@@ -135,8 +136,8 @@ def create_file():
     df = df.sort_values(['ASO Microsynth ID'], ignore_index=True)
     df = avg_exp_zscore(df)
 
-    control_hist(df)
-    df.to_csv("output/renata data.csv")
+    #control_hist(df)
+    df.to_csv("Renata/output/renata data.csv")
 
 # helper function to separate values into belonging to biological replicate 1 or 2 and return as tuple of arrays
 def get_replicates(df, type):
@@ -144,12 +145,12 @@ def get_replicates(df, type):
     b1 = df[df['Experiment Name'].str.contains('_1')].replace(to_replace='_1$|_2$', value='', regex=True)
     b2 = df[df['Experiment Name'].str.contains('_2')].replace(to_replace='_1$|_2$', value='', regex=True)
     s1 = pd.merge(b1, b2, how='inner', on=['Experiment Name', 'SampleName'],suffixes=('_1','_2'))
-    s1.to_csv('output/renata_' + type + '.csv')
+    s1.to_csv('Renata/output/renata_' + type + '.csv')
     return s1['Avg Exp_1'].to_numpy(),s1['Avg Exp_2'].to_numpy()
 
-
+output_file = open("all_r_squared.tsv", "a") # tsv file of r2 values
 def r_squared():
-    file = "data/renata data.csv"
+    file = "Renata/data/renata data.csv"
     # store in df
     df = pd.read_csv(file, encoding='latin-1')
     pd.set_option('display.max_columns', None)
@@ -157,15 +158,18 @@ def r_squared():
     df = functions.hide_naive_control(df)
 
     # keep only 10mmol
-    df = df[df['SampleName'].str.contains('_10')]
+    #df = df[df['SampleName'].str.contains('_10')]
     #kq883_10 outlier
     df = df[~df['SampleName'].str.contains('KQ883_10')]
+
+    pdf = matplotlib.backends.backend_pdf.PdfPages('Renata/data/r_squared.pdf')
 
     for type in ['WT','MT']:
         type_df = functions.get_type(df, type=type)
         b1, b2 = get_replicates(type_df, type)
-        r2_plot(b1,b2, title='renata_' + type)
-
+        fig = r2_plot(b1,b2, title='renata_Exp40 ' + type, output_file=output_file)
+        pdf.savefig(fig)
+    pdf.close()
 
 if __name__ == "__main__":
     create_file()
