@@ -30,7 +30,7 @@ def create_output():
             df = pd.read_csv(f, encoding='latin-1')
             df.columns = df.columns.str.strip()
             # rename short description to microsynth id to have consistent columns, original naive normalized cols
-            df = df.rename(columns={'ASO Short Description': 'ASO Microsynth ID'})
+            df = df.rename(columns={'ASO Short Description': 'ASO Microsynth ID', 'ASO Description': 'ASO Microsynth ID'})
             # drop fully empty rows
             df = df.dropna(how='all').reset_index(drop=True)
             # redo dCt from Crossing Point
@@ -96,7 +96,7 @@ def create_avg_exp():
     # make histogram from ranges
     type_hist(df, 'Avg Exp_zscore range')
 
-def create_tiers():
+def create_tiers(drop_output=True):
     # default path for table to read from
     table_file = get_folder()+"/avg_exp.csv"
     # store in df
@@ -110,18 +110,19 @@ def create_tiers():
     df = remove_3(df)
     df = remove_total(df)
 
-    # flag ranges > threshold and drop
-    df = df.dropna(subset=['Avg Exp_zscore range']).reset_index(drop=True)
-    ranges = flag_outliers(df, col='Avg Exp_zscore range', greater_than=config.TIERS_THRESHOLD)
-    dropped = df[ranges].sort_values('Avg Exp_zscore range', ascending=True).reset_index(drop=True)
-    dropped_groups = dropped.groupby('SampleName').first().sort_values(['SampleName'], na_position='last')
-    dropped_groups = dropped_groups[['ASO Microsynth ID', 'Test plate #']]
-    dropped_groups['Threshold: ' + str(config.TIERS_THRESHOLD)] = np.nan
-    dropped_groups.to_csv(get_folder()+"Tiers/tiers_dropped.csv", index=True)
+    if drop_output:
+        # flag ranges > threshold and drop
+        df = df.dropna(subset=['Avg Exp_zscore range']).reset_index(drop=True)
+        ranges = flag_outliers(df, col='Avg Exp_zscore range', greater_than=config.TIERS_THRESHOLD)
+        dropped = df[ranges].sort_values('Avg Exp_zscore range', ascending=True).reset_index(drop=True)
+        dropped_groups = dropped.groupby('SampleName').first().sort_values(['SampleName'], na_position='last')
+        dropped_groups = dropped_groups[['ASO Microsynth ID', 'Test plate #']]
+        dropped_groups['Threshold: ' + str(config.TIERS_THRESHOLD)] = np.nan
+        dropped_groups.to_csv(get_folder()+"Tiers/tiers_dropped.csv", index=True)
 
-    # remove anything in dropped samples from tiering
-    dropped_samples = dropped['SampleName'].unique()
-    df = df[~df['SampleName'].isin(dropped_samples)].reset_index(drop=True)
+        # remove anything in dropped samples from tiering
+        dropped_samples = dropped['SampleName'].unique()
+        df = df[~df['SampleName'].isin(dropped_samples)].reset_index(drop=True)
 
     tiers = tierlist(df)
 
