@@ -175,7 +175,7 @@ def r2_plot(y_test,y_predicted, title, output_file):
     output_file.write("{}\t{}\n".format(title, r2))
     if config.SHOW_PLOTS:
         plt.show()
-    # plt.close()
+    plt.close()
     return fig
 
 # create error bar plots similar to prism output
@@ -260,9 +260,9 @@ def error_plot(df):
         # plt.xlabel('ASOs')
         # if renormalized to neg change title
         if config.RENORMALIZE:
-            title = config.ROUND + ' Plate ' + str(plate_no) + ' Normalized to Negative Control'
+            title = config.ROUND + ' Plate ' + str(plates[plate_no]) + ' Normalized to Negative Control'
         else:
-            title = config.ROUND + ' Plate ' + str(plate_no) + ' Normalized to Naive'
+            title = config.ROUND + ' Plate ' + str(plates[plate_no]) + ' Normalized to Naive'
         plt.title(title)
         plt.suptitle(None)
         plt.tight_layout()

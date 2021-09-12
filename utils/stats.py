@@ -159,14 +159,14 @@ def tierlist(df):
     # get mean expression of sample
     df['Avg Exp'] = df.groupby(['Experiment Name','SampleName'])['Exp'].transform('mean')
     # create MT and WT views
-    df_mt = df[df['Experiment Name'].str.contains('MT', case=False)].reset_index(drop=True)[['SampleName','ASO Microsynth ID','Test plate #','Avg Exp']]
-    df_wt = df[df['Experiment Name'].str.contains('WT', case=False)].reset_index(drop=True)[['SampleName','ASO Microsynth ID','Test plate #','Avg Exp']]
+    df_mt = df[df['Experiment Name'].str.contains('MT', case=False)].reset_index(drop=True)[['SampleName','ASO Microsynth ID','Test plate #','Avg Exp', 'Avg Exp_zscore range']]
+    df_wt = df[df['Experiment Name'].str.contains('WT', case=False)].reset_index(drop=True)[['SampleName','ASO Microsynth ID','Test plate #','Avg Exp', 'Avg Exp_zscore range']]
     df = df[['SampleName','ASO Microsynth ID','Avg Exp']]
     # df['Tier'] = np.nan
     # group by name and keep only first row #todo: calculate mean here instead?
     df_mt = df_mt.groupby(df_mt['SampleName']).first()
     # rename avg exp in MT
-    df_mt = df_mt.rename(columns={'Avg Exp': 'MT Avg Exp'})
+    df_mt = df_mt.rename(columns={'Avg Exp': 'MT Avg Exp', 'Avg Exp_zscore range': 'MT zscore range'})
     df_wt = df_wt.groupby(df_wt['SampleName']).first()
     # save views
     # df_mt.to_csv(get_folder()+"/df_mt.csv")
@@ -174,6 +174,7 @@ def tierlist(df):
     # TODO: make sure count of both is correct
     # add WT Avg exp column to df_mt
     df_mt['WT Avg Exp'] = df_wt['Avg Exp']
+    df_mt['WT zscore range'] = df_wt['Avg Exp_zscore range']
 
     # create tiers for both df_mt, df_wt views
     create_tier(df_mt, col='MT Avg Exp', new_col='Tier')
